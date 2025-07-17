@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { WS_EVENTS } from '../utils/constants';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, Image } from 'react-konva';
 import { PlayerSprite } from '../canvas/PlayerSprite';
+import useImage from 'use-image';
 
 export const RedLight: React.FC = () => {
   const { game, user, redLightSignal, sendWS } = useGameStore();
@@ -10,19 +11,54 @@ export const RedLight: React.FC = () => {
   const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
   const [gameStarted, setGameStarted] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+
+  // Загружаем изображения
+  const [aselImage] = useImage('/asel.png');
+
+  // Слушатель изменения размера окна
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Адаптивные размеры на основе размера экрана
+  const screenWidth = windowSize.width;
+  const screenHeight = windowSize.height;
+  const baseScreenWidth = 1920; // Базовый размер экрана для масштабирования
+  const baseScreenHeight = 1080;
+  
+  const scaleX = screenWidth / baseScreenWidth;
+  const scaleY = screenHeight / baseScreenHeight;
+  const scale = Math.min(scaleX, scaleY); // Используем меньший масштаб для сохранения пропорций
+
+  // Обновляем позицию игрока при изменении размера окна
+  useEffect(() => {
+    setPlayerPosition(prev => ({ ...prev, y: screenHeight - 100 }));
+  }, [screenHeight]);
+
+  // Адаптивные размеры для Asel
+  const aselWidth = 300 * scale;
+  const aselHeight = 450 * scale;
+  const aselX = 850 * scaleX;
+  const aselY = 250 * scaleY;
 
   // Границы пола - теперь на весь экран
   const floorStartY = 400; // Начало пола по Y
-  const floorEndY = window.innerHeight - 50;   // Конец пола по Y (почти до низа экрана)
+  const floorEndY = screenHeight - 50;   // Конец пола по Y (почти до низа экрана)
   const floorStartX = 50;  // Левая граница пола
-  const floorEndX = window.innerWidth - 50;   // Правая граница пола
+  const floorEndX = screenWidth - 50;   // Правая граница пола
 
   // Начальные позиции для множественных игроков
   const getStartingPositions = (playerCount: number) => {
     const positions = [];
     const baseX = 50;
-    const baseY = window.innerHeight - 100;
-    const spacing = 80; // Расстояние между игроками
+    const baseY = screenHeight - 100;
+    const spacing = 120 * scale; // Увеличили расстояние между игроками с 80 до 120
 
     for (let i = 0; i < playerCount; i++) {
       const row = Math.floor(i / 5); // 5 игроков в ряду
@@ -38,7 +74,7 @@ export const RedLight: React.FC = () => {
   // Проверка столкновений между игроками
   const checkCollision = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
     const distance = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
-    return distance < 40; // Радиус столкновения
+    return distance < 60 * scale; // Увеличили радиус столкновения с 40 до 60
   };
 
   // Получение позиций всех игроков
@@ -52,7 +88,7 @@ export const RedLight: React.FC = () => {
       const isCurrentPlayer = player.nickname === user?.nickname;
       return {
         player,
-        position: isCurrentPlayer ? playerPosition : startingPositions[index] || { x: 50, y: window.innerHeight - 100 },
+        position: isCurrentPlayer ? playerPosition : startingPositions[index] || { x: 50, y: screenHeight - 100 },
         isCurrentPlayer
       };
     });
@@ -163,8 +199,8 @@ export const RedLight: React.FC = () => {
     );
   }
 
-  const canvasWidth = window.innerWidth;
-  const canvasHeight = window.innerHeight;
+  const canvasWidth = screenWidth;
+  const canvasHeight = screenHeight;
   const allPlayers = getAllPlayerPositions();
 
   return (
@@ -192,6 +228,17 @@ export const RedLight: React.FC = () => {
       <div className="absolute inset-0 z-10">
         <Stage width={canvasWidth} height={canvasHeight}>
           <Layer>
+            {/* Изображение Asel в центре */}
+            {aselImage && (
+              <Image
+                image={aselImage}
+                x={aselX}
+                y={aselY}
+                width={aselWidth}
+                height={aselHeight}
+              />
+            )}
+            
             {/* Все игроки */}
             {allPlayers.map((playerData) => (
               <PlayerSprite
@@ -201,6 +248,7 @@ export const RedLight: React.FC = () => {
                 nickname={playerData.player.nickname + (playerData.isCurrentPlayer ? ' (Вы)' : '')}
                 isCurrentPlayer={playerData.isCurrentPlayer}
                 step={step}
+                scale={scale}
               />
             ))}
           </Layer>

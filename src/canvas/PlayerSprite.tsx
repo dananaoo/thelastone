@@ -9,6 +9,7 @@ interface PlayerSpriteProps {
   avatarUrl?: string;
   isCurrentPlayer?: boolean;
   step?: number;
+  scale?: number;
 }
 
 export const PlayerSprite: React.FC<PlayerSpriteProps> = ({
@@ -18,31 +19,32 @@ export const PlayerSprite: React.FC<PlayerSpriteProps> = ({
   avatarUrl = '/per.png',
   isCurrentPlayer = false,
   step = 0,
+  scale = 1,
 }) => {
   // Загружаем аватар
   const [image] = useImage(avatarUrl);
 
-  // Размеры
-  const avatarSize = 32;
-  const legWidth = 6;
-  const legHeight = 18;
-  const bodyWidth = 24;
-  const bodyHeight = 8;
+  // Размеры с учетом масштаба - увеличенные размеры
+  const avatarSize = 48 * scale; // Увеличили с 32 до 48
+  const legWidth = 8 * scale;    // Увеличили с 6 до 8
+  const legHeight = 24 * scale;  // Увеличили с 18 до 24
+  const bodyWidth = 32 * scale;  // Увеличили с 24 до 32
+  const bodyHeight = 12 * scale; // Увеличили с 8 до 12
 
   // Смещение ног для анимации
-  const legOffset = step === 0 ? -4 : 4;
+  const legOffset = (step === 0 ? -6 : 6) * scale; // Увеличили с 4 до 6
 
   return (
     <Group x={x} y={y}>
       {/* Никнейм */}
       <Text
         text={nickname}
-        fontSize={12}
+        fontSize={16 * scale} // Увеличили с 12 до 16
         fontStyle={isCurrentPlayer ? 'bold' : 'normal'}
         fill={isCurrentPlayer ? '#2563eb' : '#333'}
         align="center"
         width={avatarSize}
-        y={-24}
+        y={-32 * scale} // Увеличили с -24 до -32
         x={-avatarSize / 2}
       />
       {/* Аватар */}
@@ -61,8 +63,8 @@ export const PlayerSprite: React.FC<PlayerSpriteProps> = ({
         width={bodyWidth}
         height={bodyHeight}
         fill={isCurrentPlayer ? '#2563eb' : '#bbb'}
-        cornerRadius={4}
-        shadowBlur={2}
+        cornerRadius={4 * scale}
+        shadowBlur={2 * scale}
       />
       {/* Левая нога */}
       <Rect
@@ -71,7 +73,7 @@ export const PlayerSprite: React.FC<PlayerSpriteProps> = ({
         width={legWidth}
         height={legHeight}
         fill="#444"
-        cornerRadius={3}
+        cornerRadius={3 * scale}
       />
       {/* Правая нога */}
       <Rect
@@ -80,7 +82,7 @@ export const PlayerSprite: React.FC<PlayerSpriteProps> = ({
         width={legWidth}
         height={legHeight}
         fill="#444"
-        cornerRadius={3}
+        cornerRadius={3 * scale}
       />
     </Group>
   );

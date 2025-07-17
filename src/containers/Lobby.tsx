@@ -8,10 +8,21 @@ export const Lobby: React.FC = () => {
   const { game, user, sendWS, setGame } = useGameStore();
   const [isReady, setIsReady] = useState(false);
   const [step, setStep] = useState(0);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   useEffect(() => {
     const interval = setInterval(() => setStep(s => (s + 1) % 2), 300);
     return () => clearInterval(interval);
+  }, []);
+
+  // Слушатель изменения размера окна
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleReadyToggle = () => {
@@ -57,6 +68,15 @@ export const Lobby: React.FC = () => {
   const rowCount = Math.ceil(alivePlayers.length / colCount);
   const cellW = canvasWidth / Math.max(1, colCount);
   const cellH = canvasHeight / Math.max(1, rowCount);
+  
+  // Адаптивный масштаб для персонажей
+  const screenWidth = windowSize.width;
+  const screenHeight = windowSize.height;
+  const baseScreenWidth = 1920;
+  const baseScreenHeight = 1080;
+  const scaleX = screenWidth / baseScreenWidth;
+  const scaleY = screenHeight / baseScreenHeight;
+  const scale = Math.min(scaleX, scaleY);
 
   return (
     <div className="fixed inset-0 w-screen h-screen bg-cover bg-center bg-no-repeat flex items-center justify-center" style={{ backgroundImage: 'url(/lobby.png)' }}>
@@ -83,6 +103,7 @@ export const Lobby: React.FC = () => {
                   nickname={player.nickname + (player.nickname === user?.nickname ? ' (Вы)' : '')}
                   isCurrentPlayer={player.nickname === user?.nickname}
                   step={step}
+                  scale={scale}
                 />
               );
             })}
