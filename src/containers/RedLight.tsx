@@ -7,15 +7,56 @@ import { PlayerSprite } from '../canvas/PlayerSprite';
 export const RedLight: React.FC = () => {
   const { game, user, redLightSignal, sendWS } = useGameStore();
   const [step, setStep] = useState(0);
-  const [playerPosition, setPlayerPosition] = useState({ x: 450, y: 300 });
+  const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
   const [gameStarted, setGameStarted] = useState(false);
   const [showControls, setShowControls] = useState(true);
 
-  // Границы пола
-  const floorStartY = 10; // Начало пола по Y
-  const floorEndY = 380;   // Конец пола по Y (почти до низа экрана)
-  const floorStartX = 0;  // Левая граница пола
-  const floorEndX = 900;   // Правая граница пола
+  // Границы пола - теперь на весь экран
+  const floorStartY = 400; // Начало пола по Y
+  const floorEndY = window.innerHeight - 50;   // Конец пола по Y (почти до низа экрана)
+  const floorStartX = 50;  // Левая граница пола
+  const floorEndX = window.innerWidth - 50;   // Правая граница пола
+
+  // Начальные позиции для множественных игроков
+  const getStartingPositions = (playerCount: number) => {
+    const positions = [];
+    const baseX = 50;
+    const baseY = window.innerHeight - 100;
+    const spacing = 80; // Расстояние между игроками
+
+    for (let i = 0; i < playerCount; i++) {
+      const row = Math.floor(i / 5); // 5 игроков в ряду
+      const col = i % 5;
+      positions.push({
+        x: baseX + col * spacing,
+        y: baseY - row * spacing
+      });
+    }
+    return positions;
+  };
+
+  // Проверка столкновений между игроками
+  const checkCollision = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
+    const distance = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
+    return distance < 40; // Радиус столкновения
+  };
+
+  // Получение позиций всех игроков
+  const getAllPlayerPositions = () => {
+    if (!game) return [];
+    
+    const alivePlayers = game.players.filter(player => player.is_alive);
+    const startingPositions = getStartingPositions(alivePlayers.length);
+    
+    return alivePlayers.map((player, index) => {
+      const isCurrentPlayer = player.nickname === user?.nickname;
+      return {
+        player,
+        position: isCurrentPlayer ? playerPosition : startingPositions[index] || { x: 50, y: window.innerHeight - 100 },
+        isCurrentPlayer
+      };
+    });
+  };
 
   useEffect(() => {
     const interval = setInterval(() => setStep(s => (s + 1) % 2), 300);
@@ -42,6 +83,10 @@ export const RedLight: React.FC = () => {
       let newX = playerPosition.x;
       let newY = playerPosition.y;
 
+      // Получаем позиции всех игроков для проверки столкновений
+      const allPlayers = getAllPlayerPositions();
+      const otherPlayers = allPlayers.filter(p => !p.isCurrentPlayer);
+
       switch (e.key) {
         case 'ArrowUp':
         case 'w':
@@ -63,12 +108,44 @@ export const RedLight: React.FC = () => {
           return;
       }
 
-      setPlayerPosition({ x: newX, y: newY });
-      sendWS(WS_EVENTS.PLAYER_MOVEMENT, { 
-        x: newX, 
-        y: newY, 
-        timestamp: new Date().toISOString() 
-      });
+      // Проверяем столкновения с другими игроками
+      let hasCollision = false;
+      for (const otherPlayer of otherPlayers) {
+        if (checkCollision({ x: newX, y: newY }, otherPlayer.position)) {
+          hasCollision = true;
+          // Толкаем другого игрока в направлении движения
+          const pushDistance = 10;
+          const dx = newX - playerPosition.x;
+          const dy = newY - playerPosition.y;
+          
+          if (Math.abs(dx) > Math.abs(dy)) {
+            // Горизонтальное движение
+            if (dx > 0) {
+              otherPlayer.position.x = Math.min(floorEndX, otherPlayer.position.x + pushDistance);
+            } else {
+              otherPlayer.position.x = Math.max(floorStartX, otherPlayer.position.x - pushDistance);
+            }
+          } else {
+            // Вертикальное движение
+            if (dy > 0) {
+              otherPlayer.position.y = Math.min(floorEndY, otherPlayer.position.y + pushDistance);
+            } else {
+              otherPlayer.position.y = Math.max(floorStartY, otherPlayer.position.y - pushDistance);
+            }
+          }
+          break;
+        }
+      }
+
+      // Если нет столкновения, обновляем позицию
+      if (!hasCollision) {
+        setPlayerPosition({ x: newX, y: newY });
+        sendWS(WS_EVENTS.PLAYER_MOVEMENT, { 
+          x: newX, 
+          y: newY, 
+          timestamp: new Date().toISOString() 
+        });
+      }
     };
 
     window.addEventListener('keydown', handleKeyDownEvent);
@@ -86,8 +163,9 @@ export const RedLight: React.FC = () => {
     );
   }
 
-  const canvasWidth = 900;
-  const canvasHeight = 400;
+  const canvasWidth = window.innerWidth;
+  const canvasHeight = window.innerHeight;
+  const allPlayers = getAllPlayerPositions();
 
   return (
     <div 
@@ -110,21 +188,21 @@ export const RedLight: React.FC = () => {
         </div>
       </div>
 
-      {/* Canvas с игроками */}
-      <div className="flex flex-col items-center justify-center w-full z-10">
-        <Stage width={canvasWidth} height={canvasHeight} className="mx-auto rounded-lg bg-transparent">
+      {/* Canvas с игроками - на весь экран */}
+      <div className="absolute inset-0 z-10">
+        <Stage width={canvasWidth} height={canvasHeight}>
           <Layer>
-            {/* Фоновая разметка */}
-            <div className="absolute inset-0 bg-gradient-to-t from-green-200 to-green-400 opacity-20" />
-            
-            {/* Только текущий игрок */}
-            <PlayerSprite
-              x={playerPosition.x}
-              y={playerPosition.y}
-              nickname={user?.nickname + ' (Вы)'}
-              isCurrentPlayer={true}
-              step={step}
-            />
+            {/* Все игроки */}
+            {allPlayers.map((playerData) => (
+              <PlayerSprite
+                key={playerData.player.player_number}
+                x={playerData.position.x}
+                y={playerData.position.y}
+                nickname={playerData.player.nickname + (playerData.isCurrentPlayer ? ' (Вы)' : '')}
+                isCurrentPlayer={playerData.isCurrentPlayer}
+                step={step}
+              />
+            ))}
           </Layer>
         </Stage>
       </div>
@@ -132,7 +210,7 @@ export const RedLight: React.FC = () => {
       {/* Счетчик игроков и кнопка "Начать" */}
       <div className="absolute top-8 right-8 z-30 flex flex-col items-end space-y-4">
         <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg">
-          <p className="text-lg font-bold">Игроков: 1</p>
+          <p className="text-lg font-bold">Игроков: {allPlayers.length}</p>
         </div>
         
         {/* Кнопка "Начать" / "Остановить" */}
