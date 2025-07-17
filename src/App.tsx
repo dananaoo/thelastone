@@ -3,8 +3,10 @@ import { useGameStore } from './store/gameStore';
 import { Auth } from './components/Auth';
 import { Lobby } from './containers/Lobby';
 import { RedLight } from './containers/RedLight';
+import { Quiz } from './containers/Quiz';
 import { ProfileCustomization } from './components/ProfileCustomization';
 import { authAPI } from './api/auth';
+import { FinalStage } from './containers/FinalStage';
 import './App.css';
 
 function App() {
@@ -90,6 +92,12 @@ function App() {
     // Проверяем текущий этап игры
     if (game?.stage === 'red_light') {
       return <RedLight />;
+    }
+    if (game?.stage === 'quiz') {
+      return <Quiz />;
+    }
+    if (game?.stage === 'final_stage') {
+      return <FinalStage onExit={handleRestartGame} />;
     }
     
     // Только одна глобальная игра, сразу лобби

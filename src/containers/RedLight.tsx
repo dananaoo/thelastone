@@ -6,7 +6,7 @@ import { PlayerSprite } from '../canvas/PlayerSprite';
 import useImage from 'use-image';
 
 export const RedLight: React.FC = () => {
-  const { game, user, sendWS } = useGameStore();
+  const { game, user, sendWS, setGame } = useGameStore();
   const [step, setStep] = useState(0);
   const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
   const [gameStarted, setGameStarted] = useState(false);
@@ -220,9 +220,17 @@ export const RedLight: React.FC = () => {
               setShowVictoryMessage(true);
               stopGameCompletely();
               
-              // Скрываем сообщение через 5 секунд
+              // Переходим на Quiz этап через 5 секунд
               setTimeout(() => {
                 setShowVictoryMessage(false);
+                if (game) {
+                  setGame({
+                    ...game,
+                    stage: 'quiz',
+                    current_stage: 2
+                  });
+                  sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+                }
               }, 5000);
               return;
             }
@@ -335,9 +343,17 @@ export const RedLight: React.FC = () => {
             setShowVictoryMessage(true);
             stopGameCompletely();
             
-            // Скрываем сообщение через 5 секунд
+            // Переходим на Quiz этап через 5 секунд
             setTimeout(() => {
               setShowVictoryMessage(false);
+              if (game) {
+                setGame({
+                  ...game,
+                  stage: 'quiz',
+                  current_stage: 2
+                });
+                sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+              }
             }, 5000);
           }
         }

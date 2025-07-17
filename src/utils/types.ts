@@ -1,6 +1,6 @@
 // Типы для игры "TheLastCeo"
 
-export type GameStage = 'lobby' | 'red_light' | 'quiz' | 'demoday';
+export type GameStage = 'lobby' | 'red_light' | 'quiz' | 'demoday' | 'final_stage';
 
 export interface Player {
   player_number: number;
