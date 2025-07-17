@@ -1,0 +1,329 @@
+Вот обновлённая версия **Cursor Frontend Rules — Last Pixel**, с изменённым порядком этапов:
+
+1. **Red Light Green Light**
+2. **Quiz**
+3. **Demoday**
+
+Также учтено, что **Demoday** пока содержит только визуальное оформление актового зала без геймплея.
+
+---
+
+# 🕹 Cursor Frontend Rules — "Last Pixel"
+
+### Этапы: Red Light → Quiz → Demoday
+
+## 📦 Технологический стек
+
+* **React (Vite)** — основной фреймворк
+* **Zustand** — глобальное хранилище состояния
+* **react-konva** — Canvas-рендеринг
+* **axios** — работа с REST API
+* **WebSocket** — подключение к серверу
+* **tailwind.css** (опционально) — стилизация интерфейса
+
+---
+
+## 🧭 Структура проекта
+
+```
+src/
+├── api/                    # REST-запросы (auth, shop, profile)
+│   ├── auth.js            # POST /api/auth/register/, POST /api/auth/login/
+│   ├── profile.js         # GET /api/profile/, PUT /api/profile/update/
+│   ├── games.js           # GET /api/games/available/, POST /api/games/{session_id}/join/
+│   ├── stats.js           # GET /api/stats/, GET /api/hall-of-fame/
+│   └── shop.js            # GET /api/shop/items/, POST /api/shop/purchase/
+├── assets/                 # Иконки, звуки, стили
+├── components/             # Общие UI-компоненты
+│   ├── Chat.jsx           # Чат между игроками
+│   ├── PlayerList.jsx     # Список игроков
+│   ├── Timer.jsx          # Таймер для этапов
+│   └── PrizePool.jsx      # Отображение призового фонда
+├── containers/             # Этапы игры
+│   ├── Lobby.jsx
+│   ├── RedLight.jsx
+│   ├── Quiz.jsx
+│   └── Demoday.jsx        ✅ финальный этап
+├── canvas/                 # Canvas-сцены (аватары, окружение)
+│   ├── GameCanvas.jsx     # Основной canvas
+│   ├── PlayerAvatar.jsx   # Аватары игроков
+│   └── GameScene.jsx      # Сцены для разных этапов
+├── websocket/              # WebSocket клиент
+│   ├── WebSocketClient.js # Основной WebSocket клиент
+│   └── messageHandlers.js # Обработчики сообщений
+├── store/                  # Zustand store
+│   ├── gameStore.js       # Основное хранилище игры
+│   ├── authStore.js       # Хранилище авторизации
+│   └── shopStore.js       # Хранилище магазина
+├── utils/                  # Утилиты
+│   ├── constants.js       # Константы (этапы, цвета, паттерны)
+│   └── helpers.js         # Вспомогательные функции
+├── App.jsx
+└── main.jsx
+```
+
+---
+
+## 🎮 Этапы игры
+
+### 🎬 Lobby
+
+* Подключение к сессии (REST API)
+* WebSocket: `ready_check`, `game_state_update`
+* Отображение игроков и кнопки «Готов»
+* Чат между игроками
+
+**REST API:**
+```jsx
+// Присоединение к игре
+POST /api/games/{session_id}/join/
+Response: { player_number: 42, session_id: "uuid" }
+
+// Получение доступных игр
+GET /api/games/available/
+Response: [{ session_id, status, max_players: 80, prize_pool: 8000000 }]
+```
+
+---
+
+### 🚦 1. Red Light Green Light
+
+| Что делает                         | Как                                  |
+| ---------------------------------- | ------------------------------------ |
+| Получает сигналы света             | WS: `red_light_signal`               |
+| Двигает игрока по полю             | Через Canvas (конва-сцена)           |
+| Отправляет координаты              | WS: `player_movement`                |
+| Обновляет остальных                | WS: `player_movement` других игроков |
+| Проверка на «движение при красном» | Обрабатывает сервер                  |
+
+```jsx
+// Отправка движения
+sendWS("player_movement", { 
+  x: 45.5, 
+  y: 20.0, 
+  timestamp: "2025-07-17T12:00:00Z" 
+})
+
+// Получение сигнала света
+// WS: red_light_signal { state: "red"|"green", duration: 5 }
+```
+
+---
+
+### ❓ 2. Quiz
+
+| Что делает          | Как                 |
+| ------------------- | ------------------- |
+| Получает вопрос     | WS: `quiz_question` |
+| Показывает варианты | UI + таймер         |
+| Отправляет ответ    | WS: `quiz_answer`   |
+
+```jsx
+// Получение вопроса
+// WS: quiz_question {
+//   id: 456,
+//   question: "What is the capital of Kazakhstan?",
+//   options: { A: "Almaty", B: "Nur-Sultan", C: "Shymkent", D: "Aktobe" },
+//   time_limit: 30
+// }
+
+// Отправка ответа
+sendWS("quiz_answer", {
+  question_id: 123,
+  answer: "A",
+  time_taken: 14.5
+})
+```
+
+---
+
+
+
+### 🏛 3. Demoday (финальный этап)
+
+| Что делает                 | Как                                            |
+| -------------------------- | ---------------------------------------------- |
+| Получает сигнал о переходе | WS: `stage_transition` с `"stage": "demoday"`  |
+| Показывает сцену           | Canvas: игроки в актовом зале                  |
+| Пока без геймплея          | Только визуальный стиль и список живых игроков |
+
+```jsx
+// Demoday.jsx
+const alivePlayers = game.players.filter(p => p.is_alive)
+```
+
+---
+
+## 📡 WebSocket: События
+
+### Клиент → Сервер
+
+* `ready_check` - готовность к игре
+* `chat_message` - сообщения в чате
+* `quiz_answer` - ответы на вопросы
+* `player_movement` - движение в Red Light
+
+
+### Сервер → Клиент
+
+* `game_state_update` - обновление состояния игры
+* `stage_transition` - переход между этапами
+* `quiz_question` - вопросы викторины
+* `red_light_signal` - сигналы света
+
+* `player_eliminated` - исключение игрока
+* `game_finished` - завершение игры
+* `chat_message` - сообщения чата
+* `player_movement` - движение других игроков
+
+---
+
+## 🧠 Zustand Store (store/gameStore.js)
+
+```ts
+{
+  game: {
+    stage: 'lobby' | 'red_light' | 'quiz' | 'demoday',
+    session_id: string,
+    status: string,
+    current_stage: number,
+    prize_pool: number,
+
+    players: [{
+      player_number: number,
+      nickname: string,
+      avatar_color: string,
+      avatar_pattern: string,
+      is_alive: boolean,
+      position_x: number,
+      position_y: number
+    }],
+    timestamp: string
+  },
+  user: { 
+    token: string,
+    user_id: number,
+    nickname: string,
+    balance: number,
+    avatar_color: string,
+    avatar_pattern: string
+  },
+  quiz: { 
+    id: number,
+    question: string,
+    options: object,
+    time_limit: number
+  },
+
+  websocket: WebSocket | null,
+  actions: {
+    setStage, updatePlayers, sendWS, eliminatePlayer, 
+    updatePrizePool, setQuizQuestion
+  }
+}
+```
+
+---
+
+## 💰 Экономика игры (в тенге)
+
+* **Стартовый баланс**: 200,000 ₸ (при регистрации)
+* **Prize Pool**: 8,000,000 - 16,000,000 ₸ (призовой фонд)
+* **Balance**: баланс игрока в тенге
+* **Shop Items**: цвета (10,000-25,000 ₸), паттерны (0-15,000 ₸)
+
+---
+
+## 🏪 Магазин (Shop)
+
+```jsx
+// Получение предметов
+GET /api/shop/items/
+Response: {
+  colors: [{ value: "#FF6B6B", name: "Red", cost: 10000 }],
+  patterns: [{ value: "solid", name: "Solid", cost: 0 }]
+}
+
+// Покупка предмета
+POST /api/shop/purchase/
+Body: { item_type: "color", item_value: "#FFD700", cost: 25000 }
+```
+
+---
+
+## 📊 Статистика
+
+```jsx
+// Статистика игрока
+GET /api/stats/
+Response: {
+  total_games: 15,
+  total_wins: 3,
+  win_rate: 20.0,
+  total_earnings: 2000000,
+  current_balance: 1500000
+}
+
+// Зал славы
+GET /api/hall-of-fame/
+Response: [{ rank: 1, nickname: "TopPlayer", total_earnings: 50000000 }]
+```
+
+---
+
+## 🏁 Завершение игры
+
+* `player_eliminated`: анимация смерти
+* `game_finished`: экран победителей (nickname + сумма)
+
+```jsx
+// WS: game_finished {
+//   winners: [{ player_number: 1, nickname: "Winner1", prize: 5333333.33 }],
+//   total_prize_pool: 16000000
+// }
+```
+
+---
+
+## ✅ Этапы разработки
+
+1. [x] Регистрация / логин
+2. [x] Lobby
+3. [x] Red Light
+4. [x] Quiz
+5. [ ] Demoday (сцена)
+6. [ ] Мини-игра в Demoday (добавим позже)
+7. [ ] Финальный экран победы
+8. [ ] Магазин аватаров
+9. [ ] Статистика и зал славы
+
+---
+
+## 🔧 Дополнительные компоненты
+
+### Chat.jsx
+```jsx
+// Отправка сообщения
+sendWS("chat_message", { message: "Hello everyone!" })
+
+// Получение сообщения
+// WS: chat_message { id: 123, player_number: 1, nickname: "Player1", message: "Hello!", timestamp: "..." }
+```
+
+### Timer.jsx
+```jsx
+// Таймер для этапов
+const Timer = ({ timeLimit, onTimeUp }) => {
+  // Обратный отсчет для quiz, red_light
+}
+```
+
+### PrizePool.jsx
+```jsx
+// Отображение призового фонда
+const PrizePool = ({ amount }) => {
+  // Форматирование больших чисел в тенге
+}
+```
+
+
