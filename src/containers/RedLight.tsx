@@ -1,20 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { WS_EVENTS } from '../utils/constants';
-import { Stage, Layer, Image } from 'react-konva';
+import { Stage, Layer, Image, Rect } from 'react-konva';
 import { PlayerSprite } from '../canvas/PlayerSprite';
 import useImage from 'use-image';
 
 export const RedLight: React.FC = () => {
-  const { game, user, redLightSignal, sendWS } = useGameStore();
+  const { game, user, sendWS } = useGameStore();
   const [step, setStep] = useState(0);
   const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
   const [gameStarted, setGameStarted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  
+  // Новые состояния для механики игры
+  const [aselEyesOpen, setAselEyesOpen] = useState(false); // true = глаза открыты (красный свет)
+  const [lightState, setLightState] = useState<'green' | 'yellow' | 'red'>('green'); // зеленый, желтый, красный
+  const [gamePhase, setGamePhase] = useState<'waiting' | 'playing' | 'finished'>('waiting');
+  const [eliminatedPlayers, setEliminatedPlayers] = useState<Set<number>>(new Set());
+  const [eliminationMessage, setEliminationMessage] = useState<string>('');
+  const [showEliminationMessage, setShowEliminationMessage] = useState(false);
+  const [victoryMessage, setVictoryMessage] = useState<string>('');
+  const [showVictoryMessage, setShowVictoryMessage] = useState(false);
+  
+  // Аудио и таймеры
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const gameTimeoutsRef = useRef<number[]>([]);
 
   // Загружаем изображения
   const [aselImage] = useImage('/asel.png');
+  const [closedAselImage] = useImage('/closedasel.png');
 
   // Слушатель изменения размера окна
   useEffect(() => {
@@ -26,15 +41,41 @@ export const RedLight: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Очистка при размонтировании компонента
+  useEffect(() => {
+    return () => {
+      stopGameCompletely();
+    };
+  }, []);
+
   // Адаптивные размеры на основе размера экрана
   const screenWidth = windowSize.width;
   const screenHeight = windowSize.height;
-  const baseScreenWidth = 1920; // Базовый размер экрана для масштабирования
+  const baseScreenWidth = 1920;
   const baseScreenHeight = 1080;
   
   const scaleX = screenWidth / baseScreenWidth;
   const scaleY = screenHeight / baseScreenHeight;
-  const scale = Math.min(scaleX, scaleY); // Используем меньший масштаб для сохранения пропорций
+  const scale = Math.min(scaleX, scaleY);
+
+  // Функция для полной остановки игры
+  const stopGameCompletely = () => {
+    // Останавливаем аудио
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    
+    // Очищаем все таймауты
+    gameTimeoutsRef.current.forEach(timeoutId => {
+      clearTimeout(timeoutId);
+    });
+    gameTimeoutsRef.current = [];
+    
+    // Сбрасываем состояние Асель
+    setAselEyesOpen(false);
+    setLightState('green');
+  };
 
   // Обновляем позицию игрока при изменении размера окна
   useEffect(() => {
@@ -47,21 +88,26 @@ export const RedLight: React.FC = () => {
   const aselX = 850 * scaleX;
   const aselY = 250 * scaleY;
 
-  // Границы пола - теперь на весь экран
-  const floorStartY = 400; // Начало пола по Y
-  const floorEndY = screenHeight - 50;   // Конец пола по Y (почти до низа экрана)
-  const floorStartX = 50;  // Левая граница пола
-  const floorEndX = screenWidth - 50;   // Правая граница пола
+  // Финишная линия (дверь)
+  const finishLineX = 1200 * scaleX;
+  const finishLineY = 600 * scaleY;
+  const finishLineWidth = 300 * scaleX;
+
+  // Границы пола
+  const floorStartY = 400;
+  const floorEndY = screenHeight - 50;
+  const floorStartX = 50;
+  const floorEndX = screenWidth - 50;
 
   // Начальные позиции для множественных игроков
   const getStartingPositions = (playerCount: number) => {
     const positions = [];
     const baseX = 50;
     const baseY = screenHeight - 100;
-    const spacing = 120 * scale; // Увеличили расстояние между игроками с 80 до 120
+    const spacing = 120 * scale;
 
     for (let i = 0; i < playerCount; i++) {
-      const row = Math.floor(i / 5); // 5 игроков в ряду
+      const row = Math.floor(i / 5);
       const col = i % 5;
       positions.push({
         x: baseX + col * spacing,
@@ -74,14 +120,20 @@ export const RedLight: React.FC = () => {
   // Проверка столкновений между игроками
   const checkCollision = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
     const distance = Math.sqrt((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2);
-    return distance < 60 * scale; // Увеличили радиус столкновения с 40 до 60
+    return distance < 60 * scale;
+  };
+
+  // Проверка достижения финишной линии
+  const checkFinishLine = (x: number, y: number) => {
+    return x >= finishLineX && x <= finishLineX + finishLineWidth && 
+           Math.abs(y - finishLineY) < 50 * scale;
   };
 
   // Получение позиций всех игроков
   const getAllPlayerPositions = () => {
     if (!game) return [];
     
-    const alivePlayers = game.players.filter(player => player.is_alive);
+    const alivePlayers = game.players.filter(player => player.is_alive && !eliminatedPlayers.has(player.player_number));
     const startingPositions = getStartingPositions(alivePlayers.length);
     
     return alivePlayers.map((player, index) => {
@@ -94,32 +146,122 @@ export const RedLight: React.FC = () => {
     });
   };
 
+  // Анимация ходьбы
   useEffect(() => {
     const interval = setInterval(() => setStep(s => (s + 1) % 2), 300);
     return () => clearInterval(interval);
   }, []);
 
-  const handleStartGame = () => {
-    setGameStarted(true);
-    // Отправляем сигнал начала игры
-    sendWS('start_red_light', { started: true });
-  };
+  // Игровой цикл с аудио и анимацией Асель
+  useEffect(() => {
+    // Если игра остановлена, полностью останавливаем все
+    if (!gameStarted || gamePhase !== 'playing') {
+      stopGameCompletely();
+      return;
+    }
 
-  const handleStopGame = () => {
-    setGameStarted(false);
-    // Отправляем сигнал остановки игры
-    sendWS('stop_red_light', { started: false });
-  };
+    // Создаем аудио элемент
+    if (!audioRef.current) {
+      audioRef.current = new Audio('/squid-game-sound.mp3');
+      audioRef.current.loop = true;
+    }
 
+    // Запускаем аудио
+    audioRef.current.play().catch(console.error);
+
+    // Игровой цикл: 5 секунд глаза закрыты (4с зеленый + 1с желтый), 3 секунды глаза открыты (красный)
+    const gameLoop = () => {
+      // Проверяем, что игра все еще идет
+      if (!gameStarted || gamePhase !== 'playing') {
+        return;
+      }
+
+      // Начинаем с зеленого света (4 секунды)
+      setAselEyesOpen(false);
+      setLightState('green');
+      
+      const greenTimeout = setTimeout(() => {
+        // Проверяем, что игра все еще идет
+        if (!gameStarted || gamePhase !== 'playing') {
+          return;
+        }
+        
+        // Желтый свет (1 секунда) - подготовка
+        setLightState('yellow');
+        
+        const yellowTimeout = setTimeout(() => {
+          // Проверяем, что игра все еще идет
+          if (!gameStarted || gamePhase !== 'playing') {
+            return;
+          }
+          
+          // Красный свет (3 секунды) - глаза открыты
+          setAselEyesOpen(true);
+          setLightState('red');
+          
+          const redTimeout = setTimeout(() => {
+            // Проверяем, что игра все еще идет
+            if (!gameStarted || gamePhase !== 'playing') {
+              return;
+            }
+            
+            // Проверяем, достигли ли игроки финишной линии
+            const allPlayers = getAllPlayerPositions();
+            const finishedPlayers = allPlayers.filter(p => 
+              checkFinishLine(p.position.x, p.position.y)
+            );
+            
+            // Если половина игроков достигла финиша, завершаем игру
+            // Для нечетного количества округляем вверх (например: 3 игрока = 2 проходят, 5 игроков = 3 проходят)
+            const requiredPlayers = Math.ceil(allPlayers.length / 2);
+            if (finishedPlayers.length >= requiredPlayers) {
+              setGamePhase('finished');
+              setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+              setShowVictoryMessage(true);
+              stopGameCompletely();
+              
+              // Скрываем сообщение через 5 секунд
+              setTimeout(() => {
+                setShowVictoryMessage(false);
+              }, 5000);
+              return;
+            }
+            
+            // Продолжаем цикл
+            if (gameStarted && gamePhase === 'playing') {
+              gameLoop();
+            }
+          }, 3000); // 3 секунды красный свет
+          
+          // Сохраняем ID таймаута для очистки
+          gameTimeoutsRef.current.push(redTimeout);
+        }, 1000); // 1 секунда желтый свет
+        
+        // Сохраняем ID таймаута для очистки
+        gameTimeoutsRef.current.push(yellowTimeout);
+      }, 4000); // 4 секунды зеленый свет
+      
+      // Сохраняем ID таймаута для очистки
+      gameTimeoutsRef.current.push(greenTimeout);
+    };
+
+    gameLoop();
+
+    // Очистка при размонтировании или изменении зависимостей
+    return () => {
+      stopGameCompletely();
+    };
+  }, [gameStarted, gamePhase]);
+
+  // Обработка движения игрока
   useEffect(() => {
     const handleKeyDownEvent = (e: KeyboardEvent) => {
-      if (!game || redLightSignal?.state === 'red' || !gameStarted) return;
+      if (!game || !gameStarted || gamePhase !== 'playing' || (lightState !== 'green' && lightState !== 'yellow')) return;
 
       const moveDistance = 15;
       let newX = playerPosition.x;
       let newY = playerPosition.y;
 
-      // Получаем позиции всех игроков для проверки столкновений
       const allPlayers = getAllPlayerPositions();
       const otherPlayers = allPlayers.filter(p => !p.isCurrentPlayer);
 
@@ -144,25 +286,22 @@ export const RedLight: React.FC = () => {
           return;
       }
 
-      // Проверяем столкновения с другими игроками
+      // Проверяем столкновения
       let hasCollision = false;
       for (const otherPlayer of otherPlayers) {
         if (checkCollision({ x: newX, y: newY }, otherPlayer.position)) {
           hasCollision = true;
-          // Толкаем другого игрока в направлении движения
           const pushDistance = 10;
           const dx = newX - playerPosition.x;
           const dy = newY - playerPosition.y;
           
           if (Math.abs(dx) > Math.abs(dy)) {
-            // Горизонтальное движение
             if (dx > 0) {
               otherPlayer.position.x = Math.min(floorEndX, otherPlayer.position.x + pushDistance);
             } else {
               otherPlayer.position.x = Math.max(floorStartX, otherPlayer.position.x - pushDistance);
             }
           } else {
-            // Вертикальное движение
             if (dy > 0) {
               otherPlayer.position.y = Math.min(floorEndY, otherPlayer.position.y + pushDistance);
             } else {
@@ -173,7 +312,6 @@ export const RedLight: React.FC = () => {
         }
       }
 
-      // Если нет столкновения, обновляем позицию
       if (!hasCollision) {
         setPlayerPosition({ x: newX, y: newY });
         sendWS(WS_EVENTS.PLAYER_MOVEMENT, { 
@@ -181,12 +319,83 @@ export const RedLight: React.FC = () => {
           y: newY, 
           timestamp: new Date().toISOString() 
         });
+        
+        // Проверяем, достиг ли игрок финишной линии
+        if (checkFinishLine(newX, newY)) {
+          // Проверяем, достигли ли достаточно игроков финиша
+          const allPlayers = getAllPlayerPositions();
+          const finishedPlayers = allPlayers.filter(p => 
+            checkFinishLine(p.position.x, p.position.y)
+          );
+          
+          const requiredPlayers = Math.ceil(allPlayers.length / 2);
+          if (finishedPlayers.length >= requiredPlayers) {
+            setGamePhase('finished');
+            setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+            setShowVictoryMessage(true);
+            stopGameCompletely();
+            
+            // Скрываем сообщение через 5 секунд
+            setTimeout(() => {
+              setShowVictoryMessage(false);
+            }, 5000);
+          }
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDownEvent);
     return () => window.removeEventListener('keydown', handleKeyDownEvent);
-  }, [playerPosition, redLightSignal, game, sendWS, gameStarted]);
+  }, [playerPosition, game, sendWS, gameStarted, gamePhase, lightState]);
+
+  // Обработка движения во время красного света (смерть)
+  useEffect(() => {
+    if (lightState !== 'red' || !gameStarted || gamePhase !== 'playing') return;
+
+    const handleMovementDuringRedLight = (e: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
+        // Игрок двинулся во время красного света - смерть
+        if (user) {
+          setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
+          setEliminationMessage(`${user.nickname} умер! Движение во время красного света!`);
+          setShowEliminationMessage(true);
+          
+          setTimeout(() => {
+            setShowEliminationMessage(false);
+          }, 3000);
+          
+          sendWS(WS_EVENTS.PLAYER_ELIMINATED, { 
+            player_number: user.user_id,
+            reason: 'movement_during_red_light'
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleMovementDuringRedLight);
+    return () => window.removeEventListener('keydown', handleMovementDuringRedLight);
+  }, [lightState, gameStarted, gamePhase, user, sendWS]);
+
+  const handleStartGame = () => {
+    // Полностью останавливаем предыдущую игру
+    stopGameCompletely();
+    
+    // Начинаем новую игру
+    setGameStarted(true);
+    setGamePhase('playing');
+    setEliminatedPlayers(new Set());
+    // Сбрасываем позицию игрока на начальную
+    setPlayerPosition({ x: 50, y: screenHeight - 100 });
+    sendWS('start_red_light', { started: true });
+  };
+
+  const handleStopGame = () => {
+    setGameStarted(false);
+    setGamePhase('waiting');
+    // Полностью останавливаем игру
+    stopGameCompletely();
+    sendWS('stop_red_light', { started: false });
+  };
 
   if (!game) {
     return (
@@ -202,6 +411,7 @@ export const RedLight: React.FC = () => {
   const canvasWidth = screenWidth;
   const canvasHeight = screenHeight;
   const allPlayers = getAllPlayerPositions();
+  const finishedPlayers = allPlayers.filter(p => checkFinishLine(p.position.x, p.position.y));
 
   return (
     <div 
@@ -212,26 +422,55 @@ export const RedLight: React.FC = () => {
       {/* Сигнал света */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-30">
         <div className={`px-8 py-4 rounded-lg text-2xl font-bold text-white shadow-lg ${
-          redLightSignal?.state === 'red' 
+          lightState === 'red' 
             ? 'bg-red-600 animate-pulse' 
-            : redLightSignal?.state === 'green'
-            ? 'bg-green-600'
-            : 'bg-yellow-600'
+            : lightState === 'yellow'
+            ? 'bg-yellow-600'
+            : 'bg-green-600'
         }`}>
-          {redLightSignal?.state === 'red' ? '🔴 КРАСНЫЙ СВЕТ' : 
-           redLightSignal?.state === 'green' ? '🟢 ЗЕЛЕНЫЙ СВЕТ' : 
-           '🟡 ОЖИДАНИЕ'}
+          {lightState === 'red' ? '🔴 КРАСНЫЙ СВЕТ' : 
+           lightState === 'yellow' ? '🟡 ЖЕЛТЫЙ СВЕТ' : 
+           '🟢 ЗЕЛЕНЫЙ СВЕТ'}
         </div>
       </div>
 
-      {/* Canvas с игроками - на весь экран */}
+      {/* Сообщение о смерти */}
+      {showEliminationMessage && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+          <div className="bg-red-600 text-white px-8 py-4 rounded-lg text-2xl font-bold shadow-lg animate-pulse">
+            {eliminationMessage}
+          </div>
+        </div>
+      )}
+
+      {/* Сообщение о победе */}
+      {showVictoryMessage && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
+          <div className="bg-green-600 text-white px-8 py-4 rounded-lg text-2xl font-bold shadow-lg animate-pulse">
+            {victoryMessage}
+          </div>
+        </div>
+      )}
+
+      {/* Canvas с игроками */}
       <div className="absolute inset-0 z-10">
         <Stage width={canvasWidth} height={canvasHeight}>
           <Layer>
-            {/* Изображение Asel в центре */}
-            {aselImage && (
+            {/* Финишная линия */}
+            <Rect
+              x={finishLineX}
+              y={finishLineY - 25 * scale}
+              width={finishLineWidth}
+              height={50 * scale}
+              fill="rgba(255, 255, 0, 0.3)"
+              stroke="yellow"
+              strokeWidth={3 * scale}
+            />
+            
+            {/* Изображение Asel */}
+            {(aselImage || closedAselImage) && (
               <Image
-                image={aselImage}
+                image={aselEyesOpen ? aselImage : closedAselImage}
                 x={aselX}
                 y={aselY}
                 width={aselWidth}
@@ -255,13 +494,21 @@ export const RedLight: React.FC = () => {
         </Stage>
       </div>
 
-      {/* Счетчик игроков и кнопка "Начать" */}
+      {/* Счетчик игроков и кнопки */}
       <div className="absolute top-8 right-8 z-30 flex flex-col items-end space-y-4">
         <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg">
           <p className="text-lg font-bold">Игроков: {allPlayers.length}</p>
+          <p className="text-sm">Достигли финиша: {finishedPlayers.length}</p>
+          <p className="text-sm">Умерли: {eliminatedPlayers.size}</p>
         </div>
         
-        {/* Кнопка "Начать" / "Остановить" */}
+        {gamePhase === 'finished' && (
+          <div className="bg-green-600 text-white px-4 py-2 rounded-lg">
+            <p className="text-lg font-bold">Игра завершена!</p>
+            <p className="text-sm">Победители: {finishedPlayers.length} игроков</p>
+          </div>
+        )}
+        
         <button
           onClick={gameStarted ? handleStopGame : handleStartGame}
           className={`px-8 py-3 rounded-lg font-bold text-lg transition-colors shadow-lg ${
@@ -274,14 +521,16 @@ export const RedLight: React.FC = () => {
         </button>
       </div>
 
-      {/* Инструкции с кнопкой OK */}
+      {/* Инструкции */}
       {showControls && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-30">
           <div className="bg-black bg-opacity-70 text-white px-6 py-4 rounded-lg text-center max-w-md">
             <p className="text-lg font-medium mb-2">Управление</p>
             <p className="text-sm mb-2">WASD или стрелки для движения</p>
-            <p className="text-sm mb-2">Двигайтесь только на зеленый свет!</p>
-            <p className="text-sm mb-4 text-yellow-300">Только первая половина аудитории пройдет игру</p>
+            <p className="text-sm mb-2">Двигайтесь на зеленый и желтый свет!</p>
+            <p className="text-sm mb-2">Красный свет - стоп, движение = смерть!</p>
+            <p className="text-sm mb-2">Достигните желтой линии для победы</p>
+            <p className="text-sm mb-4 text-yellow-300">Только первая половина игроков пройдет дальше</p>
             <button
               onClick={() => setShowControls(false)}
               className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
