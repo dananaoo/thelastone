@@ -118,7 +118,49 @@ export const RedLight: React.FC = () => {
       if (collidedBakh) {
         console.log('Столкновение с bakh!', { playerPos: playerPosition, bakhPos: collidedBakh });
         // Игрок столкнулся с bakh - смерть
-        setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
+        setEliminatedPlayers(prev => {
+          const newEliminated = new Set([...prev, user.user_id]);
+          
+          // Проверяем, не завершилась ли игра после смерти этого игрока
+          setTimeout(() => {
+            const allPlayers = getAllPlayerPositions();
+            const finishedPlayers = allPlayers.filter(p => 
+              checkFinishLine(p.position.x, p.position.y)
+            );
+            
+            // Проверяем количество живых игроков (не достигших финиша и не умерших)
+            const alivePlayers = allPlayers.filter(p => 
+              !checkFinishLine(p.position.x, p.position.y) && 
+              !newEliminated.has(p.player.player_number)
+            );
+            
+            const requiredPlayers = Math.ceil(allPlayers.length / 2);
+            
+            // Если меньше половины дошло до финиша, но остальные все умерли - проходят те, кто дошел
+            if (finishedPlayers.length < requiredPlayers && alivePlayers.length === 0 && finishedPlayers.length > 0) {
+              setGamePhase('finished');
+              setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+              setShowVictoryMessage(true);
+              stopGameCompletely();
+              
+              // Переходим на Quiz этап через 5 секунд
+              setTimeout(() => {
+                setShowVictoryMessage(false);
+                if (game) {
+                  setGame({
+                    ...game,
+                    stage: 'quiz',
+                    current_stage: 2
+                  });
+                  sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+                }
+              }, 5000);
+            }
+          }, 100); // Небольшая задержка для обновления состояния
+          
+          return newEliminated;
+        });
+        
         setEliminationMessage(`${user.nickname} умер! Столкновение с bakh!`);
         setShowEliminationMessage(true);
         
@@ -350,10 +392,37 @@ export const RedLight: React.FC = () => {
               checkFinishLine(p.position.x, p.position.y)
             );
             
-            // Если половина игроков достигла финиша, завершаем игру
-            // Для нечетного количества округляем вверх (например: 3 игрока = 2 проходят, 5 игроков = 3 проходят)
+            // Проверяем количество живых игроков (не достигших финиша и не умерших)
+            const alivePlayers = allPlayers.filter(p => 
+              !checkFinishLine(p.position.x, p.position.y) && 
+              !eliminatedPlayers.has(p.player.player_number)
+            );
+            
+            // Если половина игроков достигла финиша - игра сразу заканчивается
             const requiredPlayers = Math.ceil(allPlayers.length / 2);
             if (finishedPlayers.length >= requiredPlayers) {
+              setGamePhase('finished');
+              setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+              setShowVictoryMessage(true);
+              stopGameCompletely();
+              
+              // Переходим на Quiz этап через 5 секунд
+              setTimeout(() => {
+                setShowVictoryMessage(false);
+                if (game) {
+                  setGame({
+                    ...game,
+                    stage: 'quiz',
+                    current_stage: 2
+                  });
+                  sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+                }
+              }, 5000);
+              return;
+            }
+            
+            // Если меньше половины дошло до финиша, но остальные все умерли - проходят те, кто дошел
+            if (finishedPlayers.length < requiredPlayers && alivePlayers.length === 0 && finishedPlayers.length > 0) {
               setGamePhase('finished');
               setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
               setShowVictoryMessage(true);
@@ -465,7 +534,49 @@ export const RedLight: React.FC = () => {
         console.log('Столкновение с bakh при движении!', { newPos: { x: newX, y: newY }, bakhPos: collidedBakh });
         // Игрок столкнулся с bakh - смерть
         if (user) {
-          setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
+          setEliminatedPlayers(prev => {
+            const newEliminated = new Set([...prev, user.user_id]);
+            
+            // Проверяем, не завершилась ли игра после смерти этого игрока
+            setTimeout(() => {
+              const allPlayers = getAllPlayerPositions();
+              const finishedPlayers = allPlayers.filter(p => 
+                checkFinishLine(p.position.x, p.position.y)
+              );
+              
+              // Проверяем количество живых игроков (не достигших финиша и не умерших)
+              const alivePlayers = allPlayers.filter(p => 
+                !checkFinishLine(p.position.x, p.position.y) && 
+                !newEliminated.has(p.player.player_number)
+              );
+              
+              const requiredPlayers = Math.ceil(allPlayers.length / 2);
+              
+              // Если меньше половины дошло до финиша, но остальные все умерли - проходят те, кто дошел
+              if (finishedPlayers.length < requiredPlayers && alivePlayers.length === 0 && finishedPlayers.length > 0) {
+                setGamePhase('finished');
+                setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+                setShowVictoryMessage(true);
+                stopGameCompletely();
+                
+                // Переходим на Quiz этап через 5 секунд
+                setTimeout(() => {
+                  setShowVictoryMessage(false);
+                  if (game) {
+                    setGame({
+                      ...game,
+                      stage: 'quiz',
+                      current_stage: 2
+                    });
+                    sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+                  }
+                }, 5000);
+              }
+            }, 100); // Небольшая задержка для обновления состояния
+            
+            return newEliminated;
+          });
+          
           setEliminationMessage(`${user.nickname} умер! Столкновение с bakh!`);
           setShowEliminationMessage(true);
           
@@ -497,7 +608,15 @@ export const RedLight: React.FC = () => {
             checkFinishLine(p.position.x, p.position.y)
           );
           
+          // Проверяем количество живых игроков (не достигших финиша и не умерших)
+          const alivePlayers = allPlayers.filter(p => 
+            !checkFinishLine(p.position.x, p.position.y) && 
+            !eliminatedPlayers.has(p.player.player_number)
+          );
+          
           const requiredPlayers = Math.ceil(allPlayers.length / 2);
+          
+          // Если половина игроков достигла финиша - игра сразу заканчивается
           if (finishedPlayers.length >= requiredPlayers) {
             setGamePhase('finished');
             setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
@@ -516,6 +635,29 @@ export const RedLight: React.FC = () => {
                 sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
               }
             }, 5000);
+            return;
+          }
+          
+          // Если меньше половины дошло до финиша, но остальные все умерли - проходят те, кто дошел
+          if (finishedPlayers.length < requiredPlayers && alivePlayers.length === 0 && finishedPlayers.length > 0) {
+            setGamePhase('finished');
+            setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+            setShowVictoryMessage(true);
+            stopGameCompletely();
+            
+            // Переходим на Quiz этап через 5 секунд
+            setTimeout(() => {
+              setShowVictoryMessage(false);
+              if (game) {
+                setGame({
+                  ...game,
+                  stage: 'quiz',
+                  current_stage: 2
+                });
+                sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+              }
+            }, 5000);
+            return;
           }
         }
       }
@@ -533,7 +675,49 @@ export const RedLight: React.FC = () => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
         // Игрок двинулся во время красного света - смерть
         if (user) {
-          setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
+          setEliminatedPlayers(prev => {
+            const newEliminated = new Set([...prev, user.user_id]);
+            
+            // Проверяем, не завершилась ли игра после смерти этого игрока
+            setTimeout(() => {
+              const allPlayers = getAllPlayerPositions();
+              const finishedPlayers = allPlayers.filter(p => 
+                checkFinishLine(p.position.x, p.position.y)
+              );
+              
+              // Проверяем количество живых игроков (не достигших финиша и не умерших)
+              const alivePlayers = allPlayers.filter(p => 
+                !checkFinishLine(p.position.x, p.position.y) && 
+                !newEliminated.has(p.player.player_number)
+              );
+              
+              const requiredPlayers = Math.ceil(allPlayers.length / 2);
+              
+              // Если меньше половины дошло до финиша, но остальные все умерли - проходят те, кто дошел
+              if (finishedPlayers.length < requiredPlayers && alivePlayers.length === 0 && finishedPlayers.length > 0) {
+                setGamePhase('finished');
+                setVictoryMessage(`Поздравляем! ${finishedPlayers.length} игроков прошли на 2 этап!`);
+                setShowVictoryMessage(true);
+                stopGameCompletely();
+                
+                // Переходим на Quiz этап через 5 секунд
+                setTimeout(() => {
+                  setShowVictoryMessage(false);
+                  if (game) {
+                    setGame({
+                      ...game,
+                      stage: 'quiz',
+                      current_stage: 2
+                    });
+                    sendWS(WS_EVENTS.STAGE_TRANSITION, { stage: 'quiz' });
+                  }
+                }, 5000);
+              }
+            }, 100); // Небольшая задержка для обновления состояния
+            
+            return newEliminated;
+          });
+          
           setEliminationMessage(`${user.nickname} умер! Движение во время красного света!`);
           setShowEliminationMessage(true);
           
