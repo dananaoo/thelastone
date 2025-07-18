@@ -40,42 +40,84 @@ interface QuizQuestion {
   correctAnswer: 'A' | 'B' | 'C' | 'D';
 }
 
-// Примеры вопросов для квиза
-const QUIZ_QUESTIONS: QuizQuestion[] = [
+// Все доступные вопросы для квиза
+const ALL_QUIZ_QUESTIONS: QuizQuestion[] = [
   {
     id: 1,
-    question: "Какая столица Казахстана?",
+    question: "Как пишется полное имя Бахи?",
     options: {
-      A: "Алматы",
-      B: "Астана",
-      C: "Караганда",
-      D: "Шымкент"
+      A: "Баха",
+      B: "Бахаудин",
+      C: "Бахауддин",
+      D: "Бахардуино"
     },
     correctAnswer: "B"
   },
   {
     id: 2,
-    question: "Сколько игроков участвует в игре 'The Last CEO'?",
+    question: "Какой самый любимый звук Бернара?",
     options: {
-      A: "50",
-      B: "60", 
-      C: "80",
-      D: "100"
+      A: "Ааахх",
+      B: "Аааахххх",
+      C: "Аххххахххх",
+      D: "АААхх"
+    },
+    correctAnswer: "D"
+  },
+  {
+    id: 3,
+    question: "Самый лучший проект за всю историю инкубатора?",
+    options: {
+      A: "EPITET",
+      B: "Talapacademy",
+      C: "TabAI",
+      D: "CalAI"
+    },
+    correctAnswer: "B"
+  },
+  {
+    id: 4,
+    question: "Кто украл HDMI?",
+    options: {
+      A: "Бахредин",
+      B: "Асхат Самедулла",
+      C: "Рандомный пацанчик",
+      D: "Типичный обладатель гранта nFactorial Incubator"
+    },
+    correctAnswer: "A"
+  },
+  {
+    id: 5,
+    question: "Существует ли Аймурат на самом деле?",
+    options: {
+      A: "Да.",
+      B: "Нет",
+      C: "Это городская легенда",
+      D: "Не знаю"
     },
     correctAnswer: "C"
   },
   {
-    id: 3,
-    question: "Какой цвет сигнала означает 'можно двигаться' в игре Red Light Green Light?",
+    id: 6,
+    question: "Какое самое крутое название проекта?",
     options: {
-      A: "Красный",
-      B: "Желтый",
-      C: "Зеленый",
-      D: "Синий"
+      A: "Куока AI",
+      B: "Мено AI",
+      C: "Auar AI",
+      D: "Toonzy AI"
     },
-    correctAnswer: "C"
+    correctAnswer: "A"
   }
 ];
+
+// Функция для получения случайных 3 вопросов
+const getRandomQuizQuestions = (): QuizQuestion[] => {
+  const shuffled = [...ALL_QUIZ_QUESTIONS].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, 3);
+};
+
+// Текущие вопросы для этой игры (генерируются случайно)
+const QUIZ_QUESTIONS: QuizQuestion[] = getRandomQuizQuestions();
 
 export const Quiz: React.FC = () => {
   const { game, user, sendWS, setGame } = useGameStore();
