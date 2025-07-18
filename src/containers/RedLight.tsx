@@ -44,6 +44,7 @@ export const RedLight: React.FC = () => {
   const [aselImage] = useImage('/asel.png');
   const [closedAselImage] = useImage('/closedasel.png');
   const [bakhImage] = useImage('/bakh.png');
+  const [dianaImage] = useImage('/diana.png');
 
   // Состояния для персонажей bakh (адаптивные позиции в нижней половине экрана)
   const [bakhs, setBakhs] = useState(() => {
@@ -300,6 +301,12 @@ export const RedLight: React.FC = () => {
   const aselHeight = 450 * scale;
   const aselX = 850 * scaleX;
   const aselY = 250 * scaleY;
+
+  // Адаптивные размеры для Diana
+  const dianaWidth = 200 * scale;
+  const dianaHeight = 300 * scale;
+  const dianaX = 450 * scaleX;
+  const dianaY = 350 * scaleY;
 
   // Финишная линия (дверь)
   const finishLineX = 1200 * scaleX;
@@ -898,6 +905,17 @@ export const RedLight: React.FC = () => {
                 y={aselY}
                 width={aselWidth}
                 height={aselHeight}
+              />
+            )}
+            
+            {/* Изображение Diana */}
+            {dianaImage && (
+              <Image
+                image={dianaImage}
+                x={dianaX}
+                y={dianaY}
+                width={dianaWidth}
+                height={dianaHeight}
               />
             )}
             
