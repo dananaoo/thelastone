@@ -42,21 +42,21 @@ export const RedLight: React.FC = () => {
   const [closedAselImage] = useImage('/closedasel.png');
   const [bakhImage] = useImage('/bakh.png');
 
-  // Состояния для персонажей bakh (адаптивные позиции)
+  // Состояния для персонажей bakh (адаптивные позиции в нижней половине экрана)
   const [bakhs, setBakhs] = useState(() => {
     const basePositions = [
-      { id: 1, x: 100, y: 500, direction: 1, speed: 2 },
-      { id: 2, x: 400, y: 600, direction: -1, speed: 1.5 },
-      { id: 3, x: 700, y: 550, direction: 1, speed: 2.5 },
-      { id: 4, x: 1000, y: 650, direction: -1, speed: 1.8 },
-      { id: 5, x: 300, y: 700, direction: 1, speed: 2.2 },
-      { id: 6, x: 800, y: 450, direction: -1, speed: 1.7 }
+      { id: 1, x: 100, y: 0.6, direction: 1, speed: 2 }, // y как процент от высоты экрана
+      { id: 2, x: 400, y: 0.7, direction: -1, speed: 1.5 },
+      { id: 3, x: 700, y: 0.65, direction: 1, speed: 2.5 },
+      { id: 4, x: 1000, y: 0.75, direction: -1, speed: 1.8 },
+      { id: 5, x: 300, y: 0.8, direction: 1, speed: 2.2 },
+      { id: 6, x: 800, y: 0.55, direction: -1, speed: 1.7 }
     ];
     
     return basePositions.map(bakh => ({
       ...bakh,
       x: bakh.x * scaleX,
-      y: bakh.y * scaleY
+      y: bakh.y * screenHeight // y как процент от высоты экрана
     }));
   });
   const [bakhStep, setBakhStep] = useState(0); // Анимация ног bakh
@@ -70,7 +70,7 @@ export const RedLight: React.FC = () => {
         prevBakhs.map(bakh => {
           const newX = bakh.x + (bakh.direction * bakh.speed * 2);
           
-          // Отскок от краев экрана (адаптивные границы)
+          // Отскок от краев экрана (по всей ширине)
           const minX = 50 * scaleX;
           const maxX = (screenWidth - 50) * scaleX;
           
@@ -206,20 +206,20 @@ export const RedLight: React.FC = () => {
   // Обновляем позиции bakh при изменении размера экрана
   useEffect(() => {
     const basePositions = [
-      { id: 1, x: 100, y: 500, direction: 1, speed: 2 },
-      { id: 2, x: 400, y: 600, direction: -1, speed: 1.5 },
-      { id: 3, x: 700, y: 550, direction: 1, speed: 2.5 },
-      { id: 4, x: 1000, y: 650, direction: -1, speed: 1.8 },
-      { id: 5, x: 300, y: 700, direction: 1, speed: 2.2 },
-      { id: 6, x: 800, y: 450, direction: -1, speed: 1.7 }
+      { id: 1, x: 100, y: 0.6, direction: 1, speed: 2 }, // y как процент от высоты экрана
+      { id: 2, x: 400, y: 0.7, direction: -1, speed: 1.5 },
+      { id: 3, x: 700, y: 0.65, direction: 1, speed: 2.5 },
+      { id: 4, x: 1000, y: 0.75, direction: -1, speed: 1.8 },
+      { id: 5, x: 300, y: 0.8, direction: 1, speed: 2.2 },
+      { id: 6, x: 800, y: 0.55, direction: -1, speed: 1.7 }
     ];
     
     setBakhs(basePositions.map(bakh => ({
       ...bakh,
       x: bakh.x * scaleX,
-      y: bakh.y * scaleY
+      y: bakh.y * screenHeight // y как процент от высоты экрана
     })));
-  }, [scaleX, scaleY]);
+  }, [scaleX, screenHeight]);
 
   // Адаптивные размеры для Asel
   const aselWidth = 300 * scale;
