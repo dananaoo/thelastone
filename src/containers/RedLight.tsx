@@ -10,7 +10,6 @@ export const RedLight: React.FC = () => {
   const [step, setStep] = useState(0);
   const [playerPosition, setPlayerPosition] = useState({ x: 50, y: window.innerHeight - 100 });
   const [gameStarted, setGameStarted] = useState(false);
-  const [showControls, setShowControls] = useState(true);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
   // Адаптивные размеры на основе размера экрана
@@ -32,6 +31,10 @@ export const RedLight: React.FC = () => {
   const [showEliminationMessage, setShowEliminationMessage] = useState(false);
   const [victoryMessage, setVictoryMessage] = useState<string>('');
   const [showVictoryMessage, setShowVictoryMessage] = useState(false);
+  
+  // Состояния для модального окна с правилами
+  const [showRulesModal, setShowRulesModal] = useState(true);
+  const [waitingForPlayers, setWaitingForPlayers] = useState(false);
   
   // Аудио и таймеры
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -213,6 +216,35 @@ export const RedLight: React.FC = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Обработчик события, когда все игроки готовы
+  useEffect(() => {
+    const handleAllPlayersReady = () => {
+      if (waitingForPlayers) {
+        setWaitingForPlayers(false);
+        handleStartGame();
+      }
+    };
+
+    // Слушаем событие от сервера
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === WS_EVENTS.ALL_PLAYERS_READY) {
+          handleAllPlayersReady();
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+
+    // Добавляем слушатель к WebSocket соединению
+    const ws = (window as { gameWebSocket?: WebSocket }).gameWebSocket;
+    if (ws) {
+      ws.addEventListener('message', handleMessage);
+      return () => ws.removeEventListener('message', handleMessage);
+    }
+  }, [waitingForPlayers]);
 
   // Очистка при размонтировании компонента
   useEffect(() => {
@@ -737,6 +769,17 @@ export const RedLight: React.FC = () => {
     return () => window.removeEventListener('keydown', handleMovementDuringRedLight);
   }, [lightState, gameStarted, gamePhase, user, sendWS]);
 
+  const handleReady = () => {
+    setShowRulesModal(false);
+    setWaitingForPlayers(true);
+    
+    // Отправляем серверу информацию о готовности
+    sendWS(WS_EVENTS.PLAYER_READY, { 
+      player_number: user?.user_id,
+      stage: 'red_light'
+    });
+  };
+
   const handleStartGame = () => {
     // Полностью останавливаем предыдущую игру
     stopGameCompletely();
@@ -745,6 +788,7 @@ export const RedLight: React.FC = () => {
     setGameStarted(true);
     setGamePhase('playing');
     setEliminatedPlayers(new Set());
+    setWaitingForPlayers(false);
     // Сбрасываем позицию игрока на начальную
     setPlayerPosition({ x: 50, y: screenHeight - 100 });
     sendWS('start_red_light', { started: true });
@@ -970,36 +1014,113 @@ export const RedLight: React.FC = () => {
         </button>
       </div>
 
-      {/* Инструкции */}
-      {showControls && (
-        <div 
-          className="absolute left-1/2 transform -translate-x-1/2 z-30"
-          style={{ bottom: `${32 * scale}px` }}
-        >
+      {/* Модальное окно с правилами игры */}
+      {showRulesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
           <div 
-            className="bg-black bg-opacity-70 text-white rounded-lg text-center"
+            className="bg-gray-900 text-white rounded-lg shadow-2xl max-w-2xl mx-4"
             style={{
-              padding: `${16 * scale}px ${24 * scale}px`,
-              maxWidth: `${400 * scale}px`,
-              minWidth: `${300 * scale}px`
+              padding: `${32 * scale}px`,
+              minWidth: `${400 * scale}px`
             }}
           >
-            <p style={{ fontSize: `${18 * scale}px`, fontWeight: '500', marginBottom: `${8 * scale}px` }}>Управление</p>
-            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>WASD или стрелки для движения</p>
-            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>Двигайтесь на зеленый и желтый свет!</p>
-            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>Красный свет - стоп, движение = смерть!</p>
-            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>Достигните желтой линии для победы</p>
-            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${16 * scale}px`, color: '#fbbf24' }}>Только первая половина игроков пройдет дальше</p>
-            <button
-              onClick={() => setShowControls(false)}
-              className="bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              style={{
-                padding: `${8 * scale}px ${24 * scale}px`,
-                fontSize: `${14 * scale}px`
-              }}
+            <h2 
+              className="text-center font-bold mb-6"
+              style={{ fontSize: `${28 * scale}px` }}
             >
-              OK
-            </button>
+              🚦 ПРАВИЛА ИГРЫ "КРАСНЫЙ СВЕТ, ЗЕЛЕНЫЙ СВЕТ"
+            </h2>
+            
+            <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg border border-red-500 mb-6">
+              <p style={{ fontSize: `${16 * scale}px`, color: '#fbbf24' }}>
+                <strong>⚠️ СИТУАЦИЯ:</strong> Вы как всегда опаздываете! Асель очень зла. 
+                Вам нужно добраться до двери, когда она не смотрит на вас!
+              </p>
+            </div>
+            
+            <div className="space-y-4 mb-8">
+              <div className="flex items-start space-x-3">
+                <span className="text-green-400 font-bold" style={{ fontSize: `${20 * scale}px` }}>🟢</span>
+                <p style={{ fontSize: `${16 * scale}px` }}>
+                  <strong>Зеленый свет:</strong> Двигайтесь к финишной линии! Используйте стрелки для движения.
+                </p>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <span className="text-yellow-400 font-bold" style={{ fontSize: `${20 * scale}px` }}>🟡</span>
+                <p style={{ fontSize: `${16 * scale}px` }}>
+                  <strong>Желтый свет:</strong> Будьте осторожны! Подготовьтесь к остановке.
+                </p>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <span className="text-red-400 font-bold" style={{ fontSize: `${20 * scale}px` }}>🔴</span>
+                <p style={{ fontSize: `${16 * scale}px` }}>
+                  <strong>Красный свет:</strong> СТОП! Асель смотрит на вас! Любое движение = смерть! Замрите как статуя!
+                </p>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <span className="text-blue-400 font-bold" style={{ fontSize: `${20 * scale}px` }}>🦗</span>
+                <p style={{ fontSize: `${16 * scale}px` }}>
+                  <strong>Bakh (ментор):</strong> Избегайте столкновений! Контакт с ним = смерть! Иногда вам может повезти и он не убьет вас</p>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <span className="text-yellow-400 font-bold" style={{ fontSize: `${20 * scale}px` }}>🎯</span>
+                <p style={{ fontSize: `${16 * scale}px` }}>
+                  <strong>Цель:</strong> Достигните двери кабинета (желтая линия)! Только первая половина игроков пройдет на следующий этап.
+                </p>
+              </div>
+              
+              <div className="bg-red-900 bg-opacity-50 p-4 rounded-lg border border-red-500">
+                <p style={{ fontSize: `${14 * scale}px`, color: '#fbbf24' }}>
+                  <strong>⚠️ ВАЖНО:</strong> Если половина игроков достигнет финиша - игра сразу заканчивается! 
+                  Остальные умирают, даже если они еще живы!
+                </p>
+              </div>
+            </div>
+            
+            <div className="text-center">
+              <p style={{ fontSize: `${18 * scale}px`, marginBottom: `${16 * scale}px` }}>
+                <strong>Вы готовы начать?</strong>
+              </p>
+              <button
+                onClick={handleReady}
+                className="bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold shadow-lg"
+                style={{
+                  padding: `${16 * scale}px ${48 * scale}px`,
+                  fontSize: `${20 * scale}px`,
+                  minWidth: `${200 * scale}px`
+                }}
+              >
+                ✅ ДА, ГОТОВ!
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ожидание других игроков */}
+      {waitingForPlayers && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div 
+            className="bg-gray-900 text-white rounded-lg shadow-2xl text-center"
+            style={{
+              padding: `${32 * scale}px`,
+              minWidth: `${400 * scale}px`
+            }}
+          >
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-6"></div>
+            <h3 
+              className="font-bold mb-4"
+              style={{ fontSize: `${24 * scale}px` }}
+            >
+              Ожидание других игроков...
+            </h3>
+            <p style={{ fontSize: `${16 * scale}px`, color: '#9ca3af' }}>
+              Игра начнется автоматически, когда все участники будут готовы
+            </p>
           </div>
         </div>
       )}

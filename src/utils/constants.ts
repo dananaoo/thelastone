@@ -53,6 +53,7 @@ export const COLOR_NAMES = {
 export const WS_EVENTS = {
   // Клиент → Сервер
   READY_CHECK: 'ready_check',
+  PLAYER_READY: 'player_ready',
   CHAT_MESSAGE: 'chat_message',
   QUIZ_ANSWER: 'quiz_answer',
   PLAYER_MOVEMENT: 'player_movement',
@@ -63,7 +64,8 @@ export const WS_EVENTS = {
   QUIZ_QUESTION: 'quiz_question',
   RED_LIGHT_SIGNAL: 'red_light_signal',
   PLAYER_ELIMINATED: 'player_eliminated',
-  GAME_FINISHED: 'game_finished'
+  GAME_FINISHED: 'game_finished',
+  ALL_PLAYERS_READY: 'all_players_ready'
 } as const;
 
 // REST API эндпойнты
