@@ -312,23 +312,7 @@ export const RedLight: React.FC = () => {
   const floorStartX = 50;
   const floorEndX = screenWidth - 50;
 
-  // Начальные позиции для множественных игроков
-  const getStartingPositions = (playerCount: number) => {
-    const positions = [];
-    const baseX = 50;
-    const baseY = screenHeight - 100;
-    const spacing = 120 * scale;
 
-    for (let i = 0; i < playerCount; i++) {
-      const row = Math.floor(i / 5);
-      const col = i % 5;
-      positions.push({
-        x: baseX + col * spacing,
-        y: baseY - row * spacing
-      });
-    }
-    return positions;
-  };
 
   // Проверка столкновений между игроками
   const checkCollision = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
@@ -347,13 +331,12 @@ export const RedLight: React.FC = () => {
     if (!game) return [];
     
     const alivePlayers = game.players.filter(player => player.is_alive && !eliminatedPlayers.has(player.player_number));
-    const startingPositions = getStartingPositions(alivePlayers.length);
     
-    return alivePlayers.map((player, index) => {
+    return alivePlayers.map((player) => {
       const isCurrentPlayer = player.nickname === user?.nickname;
       return {
         player,
-        position: isCurrentPlayer ? playerPosition : startingPositions[index] || { x: 50, y: screenHeight - 100 },
+        position: isCurrentPlayer ? playerPosition : { x: 50, y: screenHeight - 100 },
         isCurrentPlayer
       };
     });
@@ -771,13 +754,21 @@ export const RedLight: React.FC = () => {
 
   const handleReady = () => {
     setShowRulesModal(false);
-    setWaitingForPlayers(true);
     
     // Отправляем серверу информацию о готовности
     sendWS(WS_EVENTS.PLAYER_READY, { 
       player_number: user?.user_id,
       stage: 'red_light'
     });
+    
+    // Если игрок один, начинаем игру сразу
+    if (game && game.players.length === 1) {
+      setTimeout(() => {
+        handleStartGame();
+      }, 1000); // Небольшая задержка для визуального эффекта
+    } else {
+      setWaitingForPlayers(true);
+    }
   };
 
   const handleStartGame = () => {
@@ -1118,8 +1109,11 @@ export const RedLight: React.FC = () => {
             >
               Ожидание других игроков...
             </h3>
-            <p style={{ fontSize: `${16 * scale}px`, color: '#9ca3af' }}>
+            <p style={{ fontSize: `${16 * scale}px`, color: '#9ca3af', marginBottom: `${16 * scale}px` }}>
               Игра начнется автоматически, когда все участники будут готовы
+            </p>
+            <p style={{ fontSize: `${14 * scale}px`, color: '#6b7280' }}>
+              Игроков в лобби: {game?.players.length || 0}
             </p>
           </div>
         </div>

@@ -149,15 +149,6 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 is_alive: true,
                 position_x: 0,
                 position_y: 0
-              },
-              {
-                player_number: 2,
-                nickname: 'Player2',
-                avatar_color: '#4ECDC4',
-                avatar_pattern: 'solid',
-                is_alive: true,
-                position_x: 0,
-                position_y: 0
               }
             ],
             timestamp: new Date().toISOString()
