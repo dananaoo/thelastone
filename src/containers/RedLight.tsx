@@ -597,14 +597,25 @@ export const RedLight: React.FC = () => {
       tabIndex={0}
     >
       {/* Сигнал света */}
-      <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-30">
-        <div className={`px-8 py-4 rounded-lg text-2xl font-bold text-white shadow-lg ${
-          lightState === 'red' 
-            ? 'bg-red-600 animate-pulse' 
-            : lightState === 'yellow'
-            ? 'bg-yellow-600'
-            : 'bg-green-600'
-        }`}>
+      <div 
+        className="absolute left-1/2 transform -translate-x-1/2 z-30"
+        style={{ top: `${32 * scale}px` }}
+      >
+        <div 
+          className={`rounded-lg font-bold text-white shadow-lg ${
+            lightState === 'red' 
+              ? 'bg-red-600 animate-pulse' 
+              : lightState === 'yellow'
+              ? 'bg-yellow-600'
+              : 'bg-green-600'
+          }`}
+          style={{
+            padding: `${24 * scale}px ${48 * scale}px`,
+            fontSize: `${32 * scale}px`,
+            minWidth: `${300 * scale}px`,
+            textAlign: 'center'
+          }}
+        >
           {lightState === 'red' ? '🔴 КРАСНЫЙ СВЕТ' : 
            lightState === 'yellow' ? '🟡 ЖЕЛТЫЙ СВЕТ' : 
            '🟢 ЗЕЛЕНЫЙ СВЕТ'}
@@ -614,7 +625,15 @@ export const RedLight: React.FC = () => {
       {/* Сообщение о смерти */}
       {showEliminationMessage && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
-          <div className="bg-red-600 text-white px-8 py-4 rounded-lg text-2xl font-bold shadow-lg animate-pulse">
+          <div 
+            className="bg-red-600 text-white rounded-lg font-bold shadow-lg animate-pulse"
+            style={{
+              padding: `${16 * scale}px ${32 * scale}px`,
+              fontSize: `${24 * scale}px`,
+              minWidth: `${300 * scale}px`,
+              textAlign: 'center'
+            }}
+          >
             {eliminationMessage}
           </div>
         </div>
@@ -623,7 +642,15 @@ export const RedLight: React.FC = () => {
       {/* Сообщение о победе */}
       {showVictoryMessage && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
-          <div className="bg-green-600 text-white px-8 py-4 rounded-lg text-2xl font-bold shadow-lg animate-pulse">
+          <div 
+            className="bg-green-600 text-white rounded-lg font-bold shadow-lg animate-pulse"
+            style={{
+              padding: `${16 * scale}px ${32 * scale}px`,
+              fontSize: `${24 * scale}px`,
+              minWidth: `${300 * scale}px`,
+              textAlign: 'center'
+            }}
+          >
             {victoryMessage}
           </div>
         </div>
@@ -710,27 +737,50 @@ export const RedLight: React.FC = () => {
       </div>
 
       {/* Счетчик игроков и кнопки */}
-      <div className="absolute top-8 right-8 z-30 flex flex-col items-end space-y-4">
-        <div className="bg-black bg-opacity-70 text-white px-4 py-2 rounded-lg">
-          <p className="text-lg font-bold">Игроков: {allPlayers.length}</p>
-          <p className="text-sm">Достигли финиша: {finishedPlayers.length}</p>
-          <p className="text-sm">Умерли: {eliminatedPlayers.size}</p>
+      <div 
+        className="absolute right-8 z-30 flex flex-col items-end"
+        style={{ 
+          top: `${32 * scale}px`,
+          gap: `${16 * scale}px` 
+        }}
+      >
+        <div 
+          className="bg-black bg-opacity-70 text-white rounded-lg"
+          style={{
+            padding: `${16 * scale}px ${24 * scale}px`,
+            minWidth: `${200 * scale}px`
+          }}
+        >
+          <p style={{ fontSize: `${24 * scale}px`, fontWeight: 'bold' }}>Игроков: {allPlayers.length}</p>
+          <p style={{ fontSize: `${18 * scale}px` }}>Достигли финиша: {finishedPlayers.length}</p>
+          <p style={{ fontSize: `${18 * scale}px` }}>Умерли: {eliminatedPlayers.size}</p>
         </div>
         
         {gamePhase === 'finished' && (
-          <div className="bg-green-600 text-white px-4 py-2 rounded-lg">
-            <p className="text-lg font-bold">Игра завершена!</p>
-            <p className="text-sm">Победители: {finishedPlayers.length} игроков</p>
+          <div 
+            className="bg-green-600 text-white rounded-lg"
+            style={{
+              padding: `${16 * scale}px ${24 * scale}px`,
+              minWidth: `${200 * scale}px`
+            }}
+          >
+            <p style={{ fontSize: `${24 * scale}px`, fontWeight: 'bold' }}>Игра завершена!</p>
+            <p style={{ fontSize: `${18 * scale}px` }}>Победители: {finishedPlayers.length} игроков</p>
           </div>
         )}
         
         <button
           onClick={gameStarted ? handleStopGame : handleStartGame}
-          className={`px-8 py-3 rounded-lg font-bold text-lg transition-colors shadow-lg ${
+          className={`rounded-lg font-bold transition-colors shadow-lg ${
             gameStarted 
               ? 'bg-red-600 text-white hover:bg-red-700' 
               : 'bg-green-600 text-white hover:bg-green-700'
           }`}
+          style={{
+            padding: `${16 * scale}px ${40 * scale}px`,
+            fontSize: `${24 * scale}px`,
+            minWidth: `${160 * scale}px`
+          }}
         >
           {gameStarted ? '⏹️ Остановить игру' : '🚦 Начать игру'}
         </button>
@@ -738,17 +788,31 @@ export const RedLight: React.FC = () => {
 
       {/* Инструкции */}
       {showControls && (
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-30">
-          <div className="bg-black bg-opacity-70 text-white px-6 py-4 rounded-lg text-center max-w-md">
-            <p className="text-lg font-medium mb-2">Управление</p>
-            <p className="text-sm mb-2">WASD или стрелки для движения</p>
-            <p className="text-sm mb-2">Двигайтесь на зеленый и желтый свет!</p>
-            <p className="text-sm mb-2">Красный свет - стоп, движение = смерть!</p>
-            <p className="text-sm mb-2">Достигните желтой линии для победы</p>
-            <p className="text-sm mb-4 text-yellow-300">Только первая половина игроков пройдет дальше</p>
+        <div 
+          className="absolute left-1/2 transform -translate-x-1/2 z-30"
+          style={{ bottom: `${32 * scale}px` }}
+        >
+          <div 
+            className="bg-black bg-opacity-70 text-white rounded-lg text-center"
+            style={{
+              padding: `${16 * scale}px ${24 * scale}px`,
+              maxWidth: `${400 * scale}px`,
+              minWidth: `${300 * scale}px`
+            }}
+          >
+            <p style={{ fontSize: `${18 * scale}px`, fontWeight: '500', marginBottom: `${8 * scale}px` }}>Управление</p>
+            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>WASD или стрелки для движения</p>
+            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>Двигайтесь на зеленый и желтый свет!</p>
+            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>Красный свет - стоп, движение = смерть!</p>
+            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>Достигните желтой линии для победы</p>
+            <p style={{ fontSize: `${14 * scale}px`, marginBottom: `${16 * scale}px`, color: '#fbbf24' }}>Только первая половина игроков пройдет дальше</p>
             <button
               onClick={() => setShowControls(false)}
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors"
+              className="bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              style={{
+                padding: `${8 * scale}px ${24 * scale}px`,
+                fontSize: `${14 * scale}px`
+              }}
             >
               OK
             </button>
