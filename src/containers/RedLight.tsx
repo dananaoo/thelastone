@@ -42,13 +42,23 @@ export const RedLight: React.FC = () => {
   const [closedAselImage] = useImage('/closedasel.png');
   const [bakhImage] = useImage('/bakh.png');
 
-  // Состояния для персонажей bakh
-  const [bakhs, setBakhs] = useState([
-    { id: 1, x: 100, y: 500, direction: 1, speed: 2 }, // direction: 1 = вправо, -1 = влево
-    { id: 2, x: 400, y: 600, direction: -1, speed: 1.5 },
-    { id: 3, x: 700, y: 550, direction: 1, speed: 2.5 },
-    { id: 4, x: 1000, y: 650, direction: -1, speed: 1.8 }
-  ]);
+  // Состояния для персонажей bakh (адаптивные позиции)
+  const [bakhs, setBakhs] = useState(() => {
+    const basePositions = [
+      { id: 1, x: 100, y: 500, direction: 1, speed: 2 },
+      { id: 2, x: 400, y: 600, direction: -1, speed: 1.5 },
+      { id: 3, x: 700, y: 550, direction: 1, speed: 2.5 },
+      { id: 4, x: 1000, y: 650, direction: -1, speed: 1.8 },
+      { id: 5, x: 300, y: 700, direction: 1, speed: 2.2 },
+      { id: 6, x: 800, y: 450, direction: -1, speed: 1.7 }
+    ];
+    
+    return basePositions.map(bakh => ({
+      ...bakh,
+      x: bakh.x * scaleX,
+      y: bakh.y * scaleY
+    }));
+  });
   const [bakhStep, setBakhStep] = useState(0); // Анимация ног bakh
 
   // Анимация движения bakh
@@ -60,11 +70,14 @@ export const RedLight: React.FC = () => {
         prevBakhs.map(bakh => {
           const newX = bakh.x + (bakh.direction * bakh.speed * 2);
           
-          // Отскок от краев экрана
-          if (newX <= 50 || newX >= screenWidth - 50) {
+          // Отскок от краев экрана (адаптивные границы)
+          const minX = 50 * scaleX;
+          const maxX = (screenWidth - 50) * scaleX;
+          
+          if (newX <= minX || newX >= maxX) {
             return {
               ...bakh,
-              x: newX <= 50 ? 50 : screenWidth - 50,
+              x: newX <= minX ? minX : maxX,
               direction: -bakh.direction // меняем направление
             };
           }
@@ -72,11 +85,17 @@ export const RedLight: React.FC = () => {
           return { ...bakh, x: newX };
         })
       );
+      
+      // Отладочная информация (только при столкновении)
+      const collidedBakh = checkBakhCollision(playerPosition.x, playerPosition.y);
+      if (collidedBakh) {
+        console.log('Столкновение в moveBakhs!', { playerPos: playerPosition, bakhPos: collidedBakh });
+      }
     };
 
     const interval = setInterval(moveBakhs, 50); // Обновляем каждые 50мс для плавного движения
     return () => clearInterval(interval);
-  }, [gameStarted, gamePhase, screenWidth]);
+  }, [gameStarted, gamePhase, screenWidth, scaleX]);
 
   // Анимация ног bakh
   useEffect(() => {
@@ -90,11 +109,56 @@ export const RedLight: React.FC = () => {
     return () => clearInterval(interval);
   }, [gameStarted, gamePhase]);
 
+  // Проверка столкновений с bakh (отдельный эффект)
+  useEffect(() => {
+    if (!gameStarted || gamePhase !== 'playing' || !user) return;
+
+    const checkBakhCollisions = () => {
+      const collidedBakh = checkBakhCollision(playerPosition.x, playerPosition.y);
+      if (collidedBakh) {
+        console.log('Столкновение с bakh!', { playerPos: playerPosition, bakhPos: collidedBakh });
+        // Игрок столкнулся с bakh - смерть
+        setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
+        setEliminationMessage(`${user.nickname} умер! Столкновение с bakh!`);
+        setShowEliminationMessage(true);
+        
+        setTimeout(() => {
+          setShowEliminationMessage(false);
+        }, 3000);
+        
+        sendWS(WS_EVENTS.PLAYER_ELIMINATED, { 
+          player_number: user.user_id,
+          reason: 'bakh_collision'
+        });
+      }
+    };
+
+    const interval = setInterval(checkBakhCollisions, 50); // Проверяем каждые 50мс для более частой проверки
+    return () => clearInterval(interval);
+  }, [gameStarted, gamePhase, user, playerPosition.x, playerPosition.y, sendWS]);
+
   // Проверка столкновений с bakh
   const checkBakhCollision = (playerX: number, playerY: number) => {
-    return bakhs.some(bakh => {
-      const distance = Math.sqrt((playerX - bakh.x) ** 2 + (playerY - bakh.y) ** 2);
-      return distance < 40 * scale; // Радиус столкновения
+    return bakhs.find(bakh => {
+      // Упрощенная проверка - используем прямоугольники вместо кругов
+      const bakhSize = 60 * scale; // Размер bakh
+      const playerSize = 50 * scale; // Размер игрока
+      
+      const bakhLeft = bakh.x;
+      const bakhRight = bakh.x + bakhSize;
+      const bakhTop = bakh.y;
+      const bakhBottom = bakh.y + bakhSize;
+      
+      const playerLeft = playerX - playerSize / 2;
+      const playerRight = playerX + playerSize / 2;
+      const playerTop = playerY - playerSize / 2;
+      const playerBottom = playerY + playerSize / 2;
+      
+      // Проверяем пересечение прямоугольников
+      return !(playerLeft > bakhRight || 
+               playerRight < bakhLeft || 
+               playerTop > bakhBottom || 
+               playerBottom < bakhTop);
     });
   };
 
@@ -138,6 +202,24 @@ export const RedLight: React.FC = () => {
   useEffect(() => {
     setPlayerPosition(prev => ({ ...prev, y: screenHeight - 100 }));
   }, [screenHeight]);
+
+  // Обновляем позиции bakh при изменении размера экрана
+  useEffect(() => {
+    const basePositions = [
+      { id: 1, x: 100, y: 500, direction: 1, speed: 2 },
+      { id: 2, x: 400, y: 600, direction: -1, speed: 1.5 },
+      { id: 3, x: 700, y: 550, direction: 1, speed: 2.5 },
+      { id: 4, x: 1000, y: 650, direction: -1, speed: 1.8 },
+      { id: 5, x: 300, y: 700, direction: 1, speed: 2.2 },
+      { id: 6, x: 800, y: 450, direction: -1, speed: 1.7 }
+    ];
+    
+    setBakhs(basePositions.map(bakh => ({
+      ...bakh,
+      x: bakh.x * scaleX,
+      y: bakh.y * scaleY
+    })));
+  }, [scaleX, scaleY]);
 
   // Адаптивные размеры для Asel
   const aselWidth = 300 * scale;
@@ -378,8 +460,9 @@ export const RedLight: React.FC = () => {
       }
 
       // Проверяем столкновения с bakh
-      if (checkBakhCollision(newX, newY)) {
-        hasCollision = true;
+      const collidedBakh = checkBakhCollision(newX, newY);
+      if (collidedBakh) {
+        console.log('Столкновение с bakh при движении!', { newPos: { x: newX, y: newY }, bakhPos: collidedBakh });
         // Игрок столкнулся с bakh - смерть
         if (user) {
           setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
@@ -395,6 +478,7 @@ export const RedLight: React.FC = () => {
             reason: 'bakh_collision'
           });
         }
+        return; // Прерываем выполнение функции
       }
 
       if (!hasCollision) {
@@ -587,36 +671,38 @@ export const RedLight: React.FC = () => {
             {/* Все bakh */}
             {bakhs.map(bakh => (
               <React.Fragment key={bakh.id}>
-                {/* Основное тело bakh */}
-                <Image
-                  image={bakhImage}
-                  x={bakh.x}
-                  y={bakh.y}
-                  width={40 * scale}
-                  height={40 * scale}
-                />
-                
-                {/* Ноги bakh - анимированные */}
+                {/* Ноги bakh - анимированные и более видимые (снизу) */}
                 {[...Array(6)].map((_, legIndex) => {
                   const legAngle = (legIndex * 60) + (bakhStep * 15); // Угол ноги
-                  const legLength = 8 * scale;
-                  const legX = bakh.x + 20 * scale + Math.cos(legAngle * Math.PI / 180) * legLength;
-                  const legY = bakh.y + 20 * scale + Math.sin(legAngle * Math.PI / 180) * legLength;
+                  const legLength = 12 * scale;
+                  const legX = bakh.x + 30 * scale + Math.cos(legAngle * Math.PI / 180) * legLength;
+                  const legY = bakh.y + 30 * scale + Math.sin(legAngle * Math.PI / 180) * legLength;
                   
                   return (
                     <Rect
                       key={`leg-${legIndex}`}
                       x={legX}
                       y={legY}
-                      width={2 * scale}
+                      width={3 * scale}
                       height={legLength}
-                      fill="#8B4513"
+                      fill="#654321"
+                      stroke="#8B4513"
+                      strokeWidth={1 * scale}
                       rotation={legAngle}
-                      offsetX={1 * scale}
+                      offsetX={1.5 * scale}
                       offsetY={legLength / 2}
                     />
                   );
                 })}
+                
+                {/* Основное тело bakh (сверху) */}
+                <Image
+                  image={bakhImage}
+                  x={bakh.x}
+                  y={bakh.y}
+                  width={60 * scale}
+                  height={60 * scale}
+                />
               </React.Fragment>
             ))}
           </Layer>
