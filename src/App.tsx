@@ -16,21 +16,15 @@ function App() {
   const [lobbyError, setLobbyError] = useState<string | null>(null);
   const [lobbyTimeout, setLobbyTimeout] = useState<number | null>(null);
 
-  // Проверяем токен только при первом рендере
+  // Сайт всегда начинается с авторизации
   useEffect(() => {
-    const token = authAPI.getToken();
-    if (token) {
-      setIsAuthenticated(true);
-      setShowCustomization(false);
-    } else {
-      setIsAuthenticated(false);
-      setShowCustomization(false);
-    }
+    setIsAuthenticated(false);
+    setShowCustomization(false);
   }, []);
 
   // Fallback для долгой загрузки лобби
   useEffect(() => {
-    if (isAuthenticated && !showCustomization && !game) {
+    if (isAuthenticated && !showCustomization && !game && user?.token) {
       setLobbyError(null);
       if (lobbyTimeout) clearTimeout(lobbyTimeout);
       const timeout = setTimeout(() => {
@@ -43,7 +37,7 @@ function App() {
       if (lobbyTimeout) clearTimeout(lobbyTimeout);
     }
     // eslint-disable-next-line
-  }, [isAuthenticated, showCustomization, game]);
+  }, [isAuthenticated, showCustomization, game, user?.token]);
 
   const handleAuthSuccess = () => {
     setIsAuthenticated(true);
@@ -67,6 +61,7 @@ function App() {
   };
 
   const handleRestartGame = () => {
+    authAPI.logout();
     localStorage.clear();
     resetGame();
     setIsAuthenticated(false);

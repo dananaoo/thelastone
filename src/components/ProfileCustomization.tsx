@@ -1,23 +1,16 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
-import type { Gender, Hat, Skin, Accessory } from '../store/gameStore';
+import type { Gender, Hat, Accessory } from '../store/gameStore';
 
 const GENDERS: { value: Gender; label: string }[] = [
   { value: 'male', label: 'Мужской' },
   { value: 'female', label: 'Женский' },
-  { value: 'other', label: 'Другое' },
 ];
 const HATS: { value: Hat; label: string }[] = [
   { value: 'none', label: 'Без головного убора' },
   { value: 'cap', label: 'Кепка' },
   { value: 'crown', label: 'Корона' },
   { value: 'bandana', label: 'Бандана' },
-];
-const SKINS: { value: Skin; label: string }[] = [
-  { value: 'light', label: 'Светлая' },
-  { value: 'tan', label: 'Смуглая' },
-  { value: 'brown', label: 'Коричневая' },
-  { value: 'dark', label: 'Темная' },
 ];
 const ACCESSORIES: { value: Accessory; label: string }[] = [
   { value: 'none', label: 'Без аксессуара' },
@@ -82,18 +75,6 @@ export const ProfileCustomization: React.FC<ProfileCustomizationProps> = ({ onDo
                 onChange={e => handleChange('hat', e.target.value as Hat)}
               >
                 {HATS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-base font-semibold text-gray-700 mb-2">Цвет кожи</label>
-              <select
-                className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white bg-opacity-90"
-                value={localCustom.skin}
-                onChange={e => handleChange('skin', e.target.value as Skin)}
-              >
-                {SKINS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>

@@ -2,15 +2,13 @@ import { create } from 'zustand';
 import type { GameState, User, QuizQuestion, ChatMessage, RedLightSignal } from '../utils/types';
 import { WS_EVENTS } from '../utils/constants';
 
-export type Gender = 'male' | 'female' | 'other';
+export type Gender = 'male' | 'female';
 export type Hat = 'none' | 'cap' | 'crown' | 'bandana';
-export type Skin = 'light' | 'tan' | 'brown' | 'dark';
 export type Accessory = 'none' | 'glasses' | 'earrings' | 'scarf';
 
 interface Customization {
   gender: Gender;
   hat: Hat;
-  skin: Skin;
   accessory: Accessory;
 }
 
@@ -51,7 +49,6 @@ interface GameStore {
 const defaultCustomization: Customization = {
   gender: 'male',
   hat: 'none',
-  skin: 'light',
   accessory: 'none',
 };
 

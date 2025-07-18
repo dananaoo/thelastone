@@ -13,6 +13,16 @@ export const RedLight: React.FC = () => {
   const [showControls, setShowControls] = useState(true);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   
+  // Адаптивные размеры на основе размера экрана
+  const screenWidth = windowSize.width;
+  const screenHeight = windowSize.height;
+  const baseScreenWidth = 1920;
+  const baseScreenHeight = 1080;
+  
+  const scaleX = screenWidth / baseScreenWidth;
+  const scaleY = screenHeight / baseScreenHeight;
+  const scale = Math.min(scaleX, scaleY);
+
   // Новые состояния для механики игры
   const [aselEyesOpen, setAselEyesOpen] = useState(false); // true = глаза открыты (красный свет)
   const [lightState, setLightState] = useState<'green' | 'yellow' | 'red'>('green'); // зеленый, желтый, красный
@@ -30,6 +40,63 @@ export const RedLight: React.FC = () => {
   // Загружаем изображения
   const [aselImage] = useImage('/asel.png');
   const [closedAselImage] = useImage('/closedasel.png');
+  const [bakhImage] = useImage('/bakh.png');
+
+  // Состояния для персонажей bakh
+  const [bakhs, setBakhs] = useState([
+    { id: 1, x: 100, y: 500, direction: 1, speed: 2 }, // direction: 1 = вправо, -1 = влево
+    { id: 2, x: 400, y: 600, direction: -1, speed: 1.5 },
+    { id: 3, x: 700, y: 550, direction: 1, speed: 2.5 },
+    { id: 4, x: 1000, y: 650, direction: -1, speed: 1.8 }
+  ]);
+  const [bakhStep, setBakhStep] = useState(0); // Анимация ног bakh
+
+  // Анимация движения bakh
+  useEffect(() => {
+    if (!gameStarted || gamePhase !== 'playing') return;
+
+    const moveBakhs = () => {
+      setBakhs(prevBakhs => 
+        prevBakhs.map(bakh => {
+          const newX = bakh.x + (bakh.direction * bakh.speed * 2);
+          
+          // Отскок от краев экрана
+          if (newX <= 50 || newX >= screenWidth - 50) {
+            return {
+              ...bakh,
+              x: newX <= 50 ? 50 : screenWidth - 50,
+              direction: -bakh.direction // меняем направление
+            };
+          }
+          
+          return { ...bakh, x: newX };
+        })
+      );
+    };
+
+    const interval = setInterval(moveBakhs, 50); // Обновляем каждые 50мс для плавного движения
+    return () => clearInterval(interval);
+  }, [gameStarted, gamePhase, screenWidth]);
+
+  // Анимация ног bakh
+  useEffect(() => {
+    if (!gameStarted || gamePhase !== 'playing') return;
+
+    const animateBakhLegs = () => {
+      setBakhStep(prev => (prev + 1) % 4); // 4 кадра анимации
+    };
+
+    const interval = setInterval(animateBakhLegs, 100); // Анимация ног каждые 100мс
+    return () => clearInterval(interval);
+  }, [gameStarted, gamePhase]);
+
+  // Проверка столкновений с bakh
+  const checkBakhCollision = (playerX: number, playerY: number) => {
+    return bakhs.some(bakh => {
+      const distance = Math.sqrt((playerX - bakh.x) ** 2 + (playerY - bakh.y) ** 2);
+      return distance < 40 * scale; // Радиус столкновения
+    });
+  };
 
   // Слушатель изменения размера окна
   useEffect(() => {
@@ -47,16 +114,6 @@ export const RedLight: React.FC = () => {
       stopGameCompletely();
     };
   }, []);
-
-  // Адаптивные размеры на основе размера экрана
-  const screenWidth = windowSize.width;
-  const screenHeight = windowSize.height;
-  const baseScreenWidth = 1920;
-  const baseScreenHeight = 1080;
-  
-  const scaleX = screenWidth / baseScreenWidth;
-  const scaleY = screenHeight / baseScreenHeight;
-  const scale = Math.min(scaleX, scaleY);
 
   // Функция для полной остановки игры
   const stopGameCompletely = () => {
@@ -320,6 +377,26 @@ export const RedLight: React.FC = () => {
         }
       }
 
+      // Проверяем столкновения с bakh
+      if (checkBakhCollision(newX, newY)) {
+        hasCollision = true;
+        // Игрок столкнулся с bakh - смерть
+        if (user) {
+          setEliminatedPlayers(prev => new Set([...prev, user.user_id]));
+          setEliminationMessage(`${user.nickname} умер! Столкновение с bakh!`);
+          setShowEliminationMessage(true);
+          
+          setTimeout(() => {
+            setShowEliminationMessage(false);
+          }, 3000);
+          
+          sendWS(WS_EVENTS.PLAYER_ELIMINATED, { 
+            player_number: user.user_id,
+            reason: 'bakh_collision'
+          });
+        }
+      }
+
       if (!hasCollision) {
         setPlayerPosition({ x: newX, y: newY });
         sendWS(WS_EVENTS.PLAYER_MOVEMENT, { 
@@ -505,6 +582,42 @@ export const RedLight: React.FC = () => {
                 step={step}
                 scale={scale}
               />
+            ))}
+
+            {/* Все bakh */}
+            {bakhs.map(bakh => (
+              <React.Fragment key={bakh.id}>
+                {/* Основное тело bakh */}
+                <Image
+                  image={bakhImage}
+                  x={bakh.x}
+                  y={bakh.y}
+                  width={40 * scale}
+                  height={40 * scale}
+                />
+                
+                {/* Ноги bakh - анимированные */}
+                {[...Array(6)].map((_, legIndex) => {
+                  const legAngle = (legIndex * 60) + (bakhStep * 15); // Угол ноги
+                  const legLength = 8 * scale;
+                  const legX = bakh.x + 20 * scale + Math.cos(legAngle * Math.PI / 180) * legLength;
+                  const legY = bakh.y + 20 * scale + Math.sin(legAngle * Math.PI / 180) * legLength;
+                  
+                  return (
+                    <Rect
+                      key={`leg-${legIndex}`}
+                      x={legX}
+                      y={legY}
+                      width={2 * scale}
+                      height={legLength}
+                      fill="#8B4513"
+                      rotation={legAngle}
+                      offsetX={1 * scale}
+                      offsetY={legLength / 2}
+                    />
+                  );
+                })}
+              </React.Fragment>
             ))}
           </Layer>
         </Stage>
